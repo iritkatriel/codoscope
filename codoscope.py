@@ -1,10 +1,13 @@
 
+import sys
+if sys.version_info < (3, 13):
+    raise RuntimeError('Versions before 3.13 are not supported')
+
 import ast
 import dis
 import io
 import opcode
 from pprint import pprint
-import sys
 import tkinter as tk
 import tkinter.ttk as ttk
 import tokenize
@@ -193,8 +196,9 @@ except:
     def close(self):
         self.destroy()
 
-window = App()
+if __name__ == '__main__':
+    window = App()
 
-# Start the event loop.
-window.mainloop()
+    # Start the event loop.
+    window.mainloop()
 
