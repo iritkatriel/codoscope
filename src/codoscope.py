@@ -154,6 +154,13 @@ except:
                     return arg
                 return super().offset_from_jump_arg(op, arg, offset)
 
+        class Formatter(dis.Formatter):
+            def print_instruction(self, instr, mark_as_current=False):
+                startline = 1 + self.file.getvalue().count('\n')
+                super().print_instruction(instr, mark_as_current=mark_as_current)
+                endline = 1 + self.file.getvalue().count('\n')
+                instr.display_lines = (startline, endline)
+
         def lineno_width(insts):
             linenos = {i[2] for i in insts}
             maxlineno = max(filter(None, linenos), default=-1)
@@ -172,7 +179,7 @@ except:
             dis.print_instructions(
                 self.get_instructions(insts, co_consts, arg_resolver, jump_targets),
                 None,
-                dis.Formatter(file=stream, lineno_width=lineno_width(insts), label_width=label_width))
+                Formatter(file=stream, lineno_width=lineno_width(insts), label_width=label_width))
             return stream.getvalue()
 
         print('codegen ...')
@@ -182,11 +189,13 @@ except:
         co_consts = [p[1] for p in sorted([(v, k) for k, v in metadata['consts'].items()])]
 
         self.pseudo_bytecode.replace_text("".join(display_insts(insts, co_consts)))
+        self.pseudo_bytecode.insts = insts
 
         print('optimization ...')
         nlocals = 0
         insts = optimize_cfg(insts, co_consts, nlocals)
         self.opt_pseudo_bytecode.replace_text("".join(display_insts(insts, co_consts)))
+        self.opt_pseudo_bytecode.insts = insts
 
         print('assembly ...')
         metadata['consts'] = {name : i for i, name in enumerate(co_consts)}
