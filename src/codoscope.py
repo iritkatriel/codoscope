@@ -127,6 +127,24 @@ except:
         self.opt_ast.replace_text(
             ast.dump(ast.parse(src, optimize=1), indent=3))
 
+    def get_instructions(self, insts, co_consts, arg_resolver, jump_targets):
+        prev_line = None
+        offset_width = len(str(len(insts))) + 2
+        for offset, inst in enumerate(insts):
+            op, arg = inst[:2]
+            start_offset = 0
+            positions = dis.Positions(*inst[2:])
+            line_number = positions.lineno if positions.lineno > 0 else None
+            starts_line = line_number != prev_line
+            prev_line = line_number
+            is_jump_target = offset in jump_targets
+            label = arg_resolver.labels_map.get(offset, None)
+            argval, argrepr = arg_resolver.get_argval_argrepr(op, arg, offset)
+            yield dis.Instruction(dis._all_opname[op], op, arg, argval, argrepr,
+                                  offset, start_offset, starts_line, line_number,
+                                  label, positions)
+
+
     def refresh_bytecode(self):
         print('refresh_bytecode')
 
@@ -136,40 +154,26 @@ except:
                     return arg
                 return super().offset_from_jump_arg(op, arg, offset)
 
-        def display_insts(insts, co_consts, arg_resolver=None):
+        def lineno_width(insts):
+            linenos = {i[2] for i in insts}
+            maxlineno = max(filter(None, linenos), default=-1)
+            if maxlineno == -1:
+                return 0
+            return max(len(dis._NO_LINENO), len(str(maxlineno)))
 
-            linestarts = {}
-            prev_line = None
-            for offset, inst in enumerate(insts):
-                positions = dis.Positions(*inst[2:])
-                line_number = positions.lineno if positions.lineno > 0 else None
-                if line_number != prev_line:
-                    linestarts[offset] = line_number
-                    prev_line = line_number
+        def display_insts(insts, co_consts, arg_resolver=None):
 
             jump_targets = [inst[1] for inst in insts if inst[0] in dis.hasjump or inst[0] in dis.hasexc]
             labels_map = {offset : (i+1) for i, offset in enumerate(jump_targets)}
+            label_width = 4 + len(str(len(labels_map)))
             arg_resolver = PseudoInstrsArgResolver(co_consts=co_consts, labels_map=labels_map)
 
-            prev_line = None
-            offset_width = len(str(len(insts))) + 2
-            for offset, inst in enumerate(insts):
-                op, arg = inst[:2]
-                start_offset = 0
-                positions = dis.Positions(*inst[2:])
-                line_number = positions.lineno if positions.lineno > 0 else None
-                starts_line = line_number != prev_line
-                prev_line = line_number
-                is_jump_target = offset in jump_targets
-                label = labels_map.get(offset, None)
-                argval, argrepr = arg_resolver.get_argval_argrepr(op, arg, offset)
-                instr = dis.Instruction(dis._all_opname[op], op, arg, argval, argrepr,
-                                        offset, start_offset, starts_line, line_number,
-                                        label, positions)
-                stream = io.StringIO()
-                formatter = dis.Formatter(file=stream, lineno_width=dis._get_lineno_width(linestarts))
-                formatter.print_instruction(instr)
-                yield stream.getvalue()
+            stream = io.StringIO()
+            dis.print_instructions(
+                self.get_instructions(insts, co_consts, arg_resolver, jump_targets),
+                None,
+                dis.Formatter(file=stream, lineno_width=lineno_width(insts), label_width=label_width))
+            return stream.getvalue()
 
         print('codegen ...')
         src = self.source.getvalue()
