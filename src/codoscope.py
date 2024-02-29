@@ -131,9 +131,12 @@ except:
         prev_line = None
         offset_width = len(str(len(insts))) + 2
         for offset, inst in enumerate(insts):
+            if isinstance(inst, dis.Instruction):
+                yield inst
+                continue
             op, arg = inst[:2]
             start_offset = 0
-            positions = dis.Positions(*inst[2:])
+            positions = dis.Positions(*inst[2:6])
             line_number = positions.lineno if positions.lineno > 0 else None
             starts_line = line_number != prev_line
             prev_line = line_number
@@ -158,7 +161,7 @@ except:
             def print_instruction(self, instr, mark_as_current=False):
                 startline = 1 + self.file.getvalue().count('\n')
                 super().print_instruction(instr, mark_as_current=mark_as_current)
-                endline = 1 + self.file.getvalue().count('\n')
+                endline = self.file.getvalue().count('\n')
                 instr.display_lines = (startline, endline)
 
         def lineno_width(insts):
@@ -168,7 +171,7 @@ except:
                 return 0
             return max(len(dis._NO_LINENO), len(str(maxlineno)))
 
-        def display_insts(insts, co_consts, arg_resolver=None):
+        def display_insts(insts, co_consts, exception_entries=None):
 
             jump_targets = [inst[1] for inst in insts if inst[0] in dis.hasjump or inst[0] in dis.hasexc]
             labels_map = {offset : (i+1) for i, offset in enumerate(jump_targets)}
@@ -178,7 +181,7 @@ except:
             stream = io.StringIO()
             dis.print_instructions(
                 self.get_instructions(insts, co_consts, arg_resolver, jump_targets),
-                None,
+                exception_entries,
                 Formatter(file=stream, lineno_width=lineno_width(insts), label_width=label_width))
             return stream.getvalue()
 
@@ -202,9 +205,11 @@ except:
         from test.test_compiler_assemble import IsolatedAssembleTests
         IsolatedAssembleTests().complete_metadata(metadata)
         co = assemble_code_object(filename, insts, metadata)
-        stream = io.StringIO()
-        dis.dis(co, file=stream)
-        self.code_object.replace_text(stream.getvalue())
+        bytecode = dis.Bytecode(co)
+        insts = list(bytecode)
+        self.code_object.replace_text("".join(
+            display_insts(insts, co.co_consts, exception_entries=bytecode.exception_entries)))
+        self.code_object.insts = insts
 
     def close(self):
         self.destroy()
