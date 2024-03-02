@@ -18,9 +18,12 @@ class Stage(ttk.Frame):
         super().__init__(master)
         self.title = title
         self.visible = tk.IntVar()
+        self.selected_line = None
 
         tk.Label(self, text=title).grid(row=0,column=0, padx=5, pady=5)
         self.init_layout()
+
+        self.text.bind('<ButtonRelease-1>', self.on_cursor_change)
 
     def init_layout(self):
         self.text = tk.Text(self, wrap=tk.NONE)
@@ -30,11 +33,31 @@ class Stage(ttk.Frame):
         self.text['yscrollcommand'] = vscroll.set
 
     def getvalue(self):
+        # end-1c to exclude the last newline character that
+        # Tk always adds to the end of the text
         return self.text.get(1.0, "end-1c")
 
     def replace_text(self, value):
         self.text.delete(1.0, "end-1c")
         self.text.insert(tk.INSERT, value or "")
+
+    def highlight_selected_line(self):
+        if self.selected_line is not None:
+            self.text.tag_add("highlight", f"{self.selected_line}.0", f"{self.selected_line}.end")
+            self.text.tag_config("highlight", background="yellow", foreground="black")
+
+    def unhighlight_selected_line(self):
+        if self.selected_line is not None:
+            self.text.tag_remove("highlight", f"{self.selected_line}.0", f"{self.selected_line}.end")
+
+    def on_cursor_change(self, event):
+        self.unhighlight_selected_line()
+        # Get the current position of the cursor in the Text widget
+        # Position is of form "<line_num>.<char_num>"
+        cursor_position = event.widget.index(tk.INSERT)
+        self.selected_line, _ = cursor_position.split(".")
+        # print("Current cursor position:", self.current_highlight_line)
+        self.highlight_selected_line()
 
 
 class App(tk.Tk):
