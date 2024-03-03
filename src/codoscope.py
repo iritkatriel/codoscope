@@ -14,23 +14,47 @@ import tokenize
 from _testinternalcapi import compiler_codegen, optimize_cfg, assemble_code_object
 
 class Stage(ttk.Frame):
-    def __init__(self, title, master=None):
+    def __init__(self, title, app_update=None, master=None):
         super().__init__(master)
+
         self.title = title
         self.visible = tk.IntVar()
         self.selected_line = None
+        self.app_update = app_update
 
-        tk.Label(self, text=title).grid(row=0,column=0, padx=5, pady=5)
         self.init_layout()
 
+        # Bind event listeners 
         self.text.bind('<ButtonRelease-1>', self.on_cursor_change)
 
     def init_layout(self):
+        # Title label
+        self.label = tk.Label(self, text=self.title)
+        self.label.grid(row=0,column=0, padx=5, pady=5)
+        # Text to hold content
         self.text = tk.Text(self, wrap=tk.NONE)
         self.text.grid(row=1,column=0, padx=5, pady=5)
+        # Vertical Scrollbar
         vscroll = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.text.yview)
         vscroll.grid(row=1, column=1, sticky='nsew')
         self.text['yscrollcommand'] = vscroll.set
+
+    """
+    Declare event listeners
+    """
+    def on_cursor_change(self, event):
+        self.unhighlight_selected_line()
+        # Get the current position of the cursor in the Text widget
+        # Position is of form "<line_num>.<char_num>"
+        cursor_position = event.widget.index(tk.INSERT)
+        self.selected_line, _ = cursor_position.split(".")
+        print(f"Selected line: {self.get_selected_line()}")
+        # print("Current cursor position:", self.current_highlight_line)
+        self.highlight_selected_line()
+        
+        # Update the app update variable
+        curr_val = self.app_update.get()
+        self.app_update.set(curr_val + 1)
 
     def getvalue(self):
         # end-1c to exclude the last newline character that
@@ -41,24 +65,29 @@ class Stage(ttk.Frame):
         self.text.delete(1.0, "end-1c")
         self.text.insert(tk.INSERT, value or "")
 
+    def get_selected_line(self):
+        if self.selected_line is not None:
+            return self.text.get(f"{self.selected_line}.0", f"{self.selected_line}.end")
+
     def highlight_selected_line(self):
         if self.selected_line is not None:
             self.text.tag_add("highlight", f"{self.selected_line}.0", f"{self.selected_line}.end")
             self.text.tag_config("highlight", background="yellow", foreground="black")
 
+    def highlight_selected_lines(self, lines):
+        if lines is not []:
+            for line in lines:
+                self.text.tag_add("highlight", f"{line}.0", f"{line}.end")
+                self.text.tag_config("highlight", background="yellow", foreground="black")
+
+    def unhighlight_selected_lines(self, lines):
+        if lines is not []:
+            for line in lines:
+                self.text.tag_remove("highlight", f"{line}.0", f"{line}.end")
+
     def unhighlight_selected_line(self):
         if self.selected_line is not None:
             self.text.tag_remove("highlight", f"{self.selected_line}.0", f"{self.selected_line}.end")
-
-    def on_cursor_change(self, event):
-        self.unhighlight_selected_line()
-        # Get the current position of the cursor in the Text widget
-        # Position is of form "<line_num>.<char_num>"
-        cursor_position = event.widget.index(tk.INSERT)
-        self.selected_line, _ = cursor_position.split(".")
-        # print("Current cursor position:", self.current_highlight_line)
-        self.highlight_selected_line()
-
 
 class App(tk.Tk):
 
@@ -82,7 +111,22 @@ except:
         self.controls.grid(row=0, column=0)
         self.displays.grid(row=1, column=0)
 
-        self.source = Stage('Source', master=self.displays)
+        self.source_line = None
+
+        # Flag variable to trigger event update
+        # in case displays need to be updated
+        self.update = tk.IntVar()
+
+        # Callback function for updating displays
+        def on_var_change(*args):
+            self.source_line = self.source.get_selected_line()
+            print(f"Lines to highlight: {self.source_line}")
+            self.refresh_tokens()
+
+        # Register callback function
+        self.update.trace_add("write", on_var_change)
+
+        self.source = Stage('Source', app_update=self.update, master=self.displays)
         self.tokens = Stage('Tokens', master=self.displays)
         self.ast = Stage('AST', master=self.displays)
         self.opt_ast = Stage('Optimized AST', master=self.displays)
@@ -139,6 +183,15 @@ except:
         tokens = list(tokenize.tokenize(
                      io.BytesIO(src.encode('utf-8')).readline))
         self.tokens.replace_text(self._pretty(tokens))
+
+        if self.source_line is not None:
+            highlight_lines = []
+            for (i, token) in enumerate(tokens, start=1):
+                if token.line.strip() == self.source_line.strip():
+                    highlight_lines.append(i)
+            #print("Lines to highlight:")
+            #print(highlight_lines)
+            self.tokens.highlight_selected_lines(highlight_lines)
 
     def refresh_ast(self):
         src = self.source.getvalue()
