@@ -171,8 +171,10 @@ except:
                 return 0
             return max(len(dis._NO_LINENO), len(str(maxlineno)))
 
-        def display_insts(insts, co_consts, exception_entries=None):
-
+        def display_insts(insts_, co_consts, exception_entries=None):
+            insts = insts_
+            if hasattr(insts, 'get_instructions'):
+                insts = insts.get_instructions()
             jump_targets = [inst[1] for inst in insts if inst[0] in dis.hasjump or inst[0] in dis.hasexc]
             labels_map = {offset : (i+1) for i, offset in enumerate(jump_targets)}
             label_width = 4 + len(str(len(labels_map)))
