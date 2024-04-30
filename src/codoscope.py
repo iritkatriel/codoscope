@@ -171,14 +171,16 @@ except:
                 return 0
             return max(len(dis._NO_LINENO), len(str(maxlineno)))
 
-        def display_insts(insts_, co_consts, exception_entries=None):
+        def display_insts(insts_, co_consts, names, exception_entries=None):
             insts = insts_
             if hasattr(insts, 'get_instructions'):
                 insts = insts.get_instructions()
             jump_targets = [inst[1] for inst in insts if inst[0] in dis.hasjump or inst[0] in dis.hasexc]
             labels_map = {offset : (i+1) for i, offset in enumerate(jump_targets)}
             label_width = 4 + len(str(len(labels_map)))
-            arg_resolver = PseudoInstrsArgResolver(co_consts=co_consts, labels_map=labels_map)
+            arg_resolver = PseudoInstrsArgResolver(co_consts=co_consts,
+                                                   names=names,
+                                                   labels_map=labels_map)
 
             stream = io.StringIO()
             dis.print_instructions(
@@ -192,14 +194,15 @@ except:
         filename = "<src>"
         insts, metadata  = compiler_codegen(ast.parse(src, optimize=1), filename, 0)
         co_consts = [p[1] for p in sorted([(v, k) for k, v in metadata['consts'].items()])]
+        names = {v : k for k,v in metadata['names'].items()}
 
-        self.pseudo_bytecode.replace_text("".join(display_insts(insts, co_consts)))
+        self.pseudo_bytecode.replace_text("".join(display_insts(insts, co_consts, names)))
         self.pseudo_bytecode.insts = insts
 
         print('optimization ...')
         nlocals = 0
         insts = optimize_cfg(insts, co_consts, nlocals)
-        self.opt_pseudo_bytecode.replace_text("".join(display_insts(insts, co_consts)))
+        self.opt_pseudo_bytecode.replace_text("".join(display_insts(insts, co_consts, names)))
         self.opt_pseudo_bytecode.insts = insts
 
         print('assembly ...')
@@ -210,7 +213,7 @@ except:
         bytecode = dis.Bytecode(co)
         insts = list(bytecode)
         self.code_object.replace_text("".join(
-            display_insts(insts, co.co_consts, exception_entries=bytecode.exception_entries)))
+            display_insts(insts, co.co_consts, names, exception_entries=bytecode.exception_entries)))
         self.code_object.insts = insts
 
     def close(self):
