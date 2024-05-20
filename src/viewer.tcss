@@ -1,0 +1,3 @@
+CodeViewer #body {
+    layout: horizontal;
+}
