@@ -50,14 +50,27 @@ class TokenWidget(ScrollableContainer):
     def compose(self) -> ComposeResult:
         yield Static(classes="tokens", expand=True)
 
+    def format_token(self, token: tokenize.TokenInfo, current_line: int) -> tuple[str, int]:
+        line = token.start[0]+1
+        if line != current_line:
+            line_marker = "%4d: " % line
+        else:
+            line_marker = "      "
+
+        return (line_marker+f"{token}"), line
+
     def update(self, tokens: Iterable[tokenize.TokenInfo]) -> None:
-        # FIXME: inefficient. do we care?
-        toks = list(str(s) for s in tokens)
-        token_lines = "\n".join(toks)
+        token_lines: list[str] = []
+        width = 0
+        current_line = 0
+        for token in tokens:
+            formatted_token, current_line = self.format_token(token, current_line)
+            token_lines.append(formatted_token)
+            width = max(width, len(formatted_token))
 
         static = self.query_one(".tokens", Static)
-        static.update(token_lines)
-        static.styles.width = max(len(str(l)) for l in toks)
+        static.update(Syntax("\n".join(token_lines), "text"))
+        static.styles.width = width
 
 
 class CodeViewer(App[None]):
