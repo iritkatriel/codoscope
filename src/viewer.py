@@ -4,14 +4,13 @@ from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Header, Footer, Static
 
-SAMPLE_CODE = """
-try:
-  if x:
-    y = 12
-  else:
-    y = 14
+SAMPLE_CODE = """try:
+    if x:
+        y = 12
+    else:
+        y = 14
 except:
-  y = 16
+    y = 16
 """
 
 
