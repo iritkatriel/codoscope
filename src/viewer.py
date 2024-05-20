@@ -1,11 +1,14 @@
+from collections import defaultdict
 import io
 from token import tok_name
 import tokenize
-from typing import Iterable
+from typing import Any, Iterable
 from rich.syntax import Syntax
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll, ScrollableContainer
+from textual import events
+from textual.message import Message
 from textual.reactive import var
 from textual.widgets import Header, Footer, Static
 
@@ -26,6 +29,13 @@ except:
 )
 
 
+class HoverLine(Message):
+
+    def __init__(self, lineno: int, *args: Any, **kwargs: Any) -> None:
+        self.lineno = lineno
+        super().__init__(*args, **kwargs)
+
+
 class SourceWidget(Container):
 
     def compose(self) -> ComposeResult:
@@ -34,38 +44,64 @@ class SourceWidget(Container):
             # yield TextArea.code_editor("", language="python", classes="editor")
             yield Static(classes="editor", expand=True)
 
-    def update_code(self, code: str) -> None:
+    def update_code(self, code: str, highlight_lines: set[int]) -> None:
         # To use an editor
         # source = self.query_one(".editor", TextArea)
         # source.text = code
         source = self.query_one(".editor", Static)
         source.update(
             Syntax(
-                code, "python", line_numbers=True, word_wrap=False, indent_guides=True
+                code,
+                "python",
+                line_numbers=True,
+                word_wrap=False,
+                indent_guides=True,
+                highlight_lines=highlight_lines,
             )
         )
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        self.post_message(HoverLine(event.y + 1))
 
 
 class TokenWidget(ScrollableContainer):
 
+    # lineno_map maps code line numbers, to the indices of all tokens in that line
+    lineno_map: defaultdict[int, set[int]]
+    token_positions: list[int]
+
+    def __init__(self, id: str) -> None:
+        super().__init__(id=id)
+        self.lineno_map = defaultdict(set)
+        self.token_positions = []
+
     def compose(self) -> ComposeResult:
         yield Static(classes="tokens", expand=True)
 
-    def format_token(self, token: tokenize.TokenInfo, current_line: int) -> tuple[str, int]:
-        line = token.start[0]+1
+    def format_token(
+        self, token: tokenize.TokenInfo, current_line: int
+    ) -> tuple[str, int]:
+        line = token.start[0] + 1
         if line != current_line:
             line_marker = "%4d: " % line
         else:
             line_marker = "      "
 
-        return (line_marker+f"{tok_name[token.exact_type]:10} {token.string!r} start={token.start} end={token.end}"), line
+        return (
+            line_marker
+            + f"{tok_name[token.exact_type]:10} {token.string!r} start={token.start} end={token.end}"
+        ), line
 
     def update(self, tokens: Iterable[tokenize.TokenInfo]) -> None:
         token_lines: list[str] = []
+        self.lineno_map.clear()
+        self.token_positions = []
         width = 0
         current_line = 0
-        for token in tokens:
+        for token_idx, token in enumerate(tokens):
             formatted_token, current_line = self.format_token(token, current_line)
+            self.lineno_map[current_line].add(token_idx)
+            self.token_positions.append(current_line)
             token_lines.append(formatted_token)
             width = max(width, len(formatted_token))
 
@@ -73,9 +109,14 @@ class TokenWidget(ScrollableContainer):
         static.update(Syntax("\n".join(token_lines), "text"))
         static.styles.width = width
 
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        line = self.token_positions[event.y]
+        self.post_message(HoverLine(line))
+
 
 class CodeViewer(App[None]):
 
+    TITLE = "Compile Pipeline Explorer"
     CSS_PATH = "viewer.tcss"
 
     BINDINGS = [
@@ -109,7 +150,7 @@ class CodeViewer(App[None]):
 
     def _set_code(self, code: str) -> None:
         source = self.query_one("#source", SourceWidget)
-        source.update_code(code)
+        source.update_code(code, set())
         tokens = tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline)
         self.query_one("#tokens", TokenWidget).update(tokens)
 
@@ -117,8 +158,13 @@ class CodeViewer(App[None]):
         self._set_code(SAMPLE_CODE)
         self.query_one(".editor").focus()
 
-    def action_toggle_tokens(self):
+    def action_toggle_tokens(self) -> None:
         self.show_tokens = not self.show_tokens
+
+    def on_hover_line(self, message: HoverLine) -> None:
+        source = self.query_one("#source", SourceWidget)
+        # FIXME: this overwrites existing code!
+        source.update_code(SAMPLE_CODE, {message.lineno})
 
 
 if __name__ == "__main__":
