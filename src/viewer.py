@@ -18,18 +18,9 @@ from textual.widgets import Header, Footer, Static
 # Enable editing
 # from textual.widgets import TextArea
 
-SAMPLE_CODE = (
-    """try:
-    if x:
-        y = 12
-    else:
-        y = 14
-except:
-    y = 16
-##### THIS IS A VERY LONG LINE THIS IS A VERY LONG LINE THIS IS A VERY LONG LINE
-"""
-    * 8
-)
+import bisect
+from pathlib import Path
+SAMPLE_CODE = Path(bisect.__file__).read_text()
 
 HIGHLIGHT = Style(bgcolor="bright_black")
 
@@ -142,7 +133,7 @@ class TokenWidget(ScrollableContainer):
         body.update(self._prerendered)
 
         # Ensure it's visible
-        if line in self.lineno_map:
+        if self.lineno_map[line]:
             min_line = min(self.lineno_map[line]) - 1
             max_line = max(self.lineno_map[line]) - 1
             self.scroll_to_region(Region(0, min_line, 1, max_line - min_line + 1))
