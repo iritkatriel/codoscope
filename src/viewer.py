@@ -4,6 +4,7 @@ from token import tok_name
 import tokenize
 from typing import Any, Iterable
 from rich.syntax import Syntax
+from rich.style import Style
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll, ScrollableContainer
@@ -28,6 +29,7 @@ except:
     * 8
 )
 
+HIGHLIGHT = Style(bgcolor="bright_black")
 
 class HoverLine(Message):
 
@@ -50,18 +52,20 @@ class SourceWidget(Container):
         # source.text = code
         source = self.query_one(".editor", Static)
         self._prerendered = Syntax(
-                code,
-                "python",
-                line_numbers=True,
-                word_wrap=False,
-                indent_guides=True,
-                highlight_lines=highlight_lines,
-            )
+            code,
+            "python",
+            line_numbers=True,
+            word_wrap=False,
+            indent_guides=True,
+            highlight_lines=highlight_lines,
+        )
         source.update(self._prerendered)
 
-    def highlight(self, lines: set[int]) -> None:
+    def highlight(self, line: int) -> None:
         source = self.query_one(".editor", Static)
-        self._prerendered.highlight_lines = lines
+        self._prerendered.highlight_lines = {line}
+        self._prerendered._stylized_ranges.clear()
+        self._prerendered.stylize_range(HIGHLIGHT, (line,0), (line+1,0))
         source.update(self._prerendered)
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
@@ -104,18 +108,30 @@ class TokenWidget(ScrollableContainer):
         current_line = 0
         for token_idx, token in enumerate(tokens):
             formatted_token, current_line = self.format_token(token, current_line)
-            self.lineno_map[current_line].add(token_idx)
+            self.lineno_map[current_line].add(token_idx + 1)
             self.token_positions.append(current_line)
             token_lines.append(formatted_token)
             width = max(width, len(formatted_token))
 
         static = self.query_one(".tokens", Static)
-        static.update(Syntax("\n".join(token_lines), "text"))
+        self._prerendered = Syntax(
+            "\n".join(token_lines),
+            "text",
+            word_wrap=False,
+        )
+        static.update(self._prerendered)
         static.styles.width = width
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         line = self.token_positions[event.y]
         self.post_message(HoverLine(line))
+
+    def highlight(self, line: int) -> None:
+        body = self.query_one(".tokens", Static)
+        self._prerendered._stylized_ranges.clear()  # No public API for this?
+        for line in self.lineno_map[line]:
+            self._prerendered.stylize_range(HIGHLIGHT, (line,0), (line+1,0))
+        body.update(self._prerendered)
 
 
 class CodeViewer(App[None]):
@@ -167,7 +183,9 @@ class CodeViewer(App[None]):
 
     def on_hover_line(self, message: HoverLine) -> None:
         source = self.query_one("#source", SourceWidget)
-        source.highlight({message.lineno})
+        source.highlight(message.lineno)
+        tokens = self.query_one("#tokens", TokenWidget)
+        tokens.highlight(message.lineno)
 
 
 if __name__ == "__main__":
