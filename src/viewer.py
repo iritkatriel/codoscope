@@ -1,10 +1,10 @@
 import io
-import pprint
 import tokenize
+from typing import Iterable
 from rich.syntax import Syntax
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, VerticalScroll
+from textual.containers import Container, VerticalScroll, ScrollableContainer
 from textual.reactive import var
 from textual.widgets import Header, Footer, Static
 
@@ -19,6 +19,7 @@ SAMPLE_CODE = (
         y = 14
 except:
     y = 16
+##### THIS IS A VERY LONG LINE THIS IS A VERY LONG LINE THIS IS A VERY LONG LINE
 """
     * 8
 )
@@ -44,18 +45,24 @@ class SourceWidget(Container):
         )
 
 
-class TokenWidget(Container):
+class TokenWidget(ScrollableContainer):
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll():
-            yield Static(classes="tokens", expand=True)
+        yield Static(classes="tokens", expand=True)
 
-    def update(self, code: str) -> None:
+    def update(self, tokens: Iterable[tokenize.TokenInfo]) -> None:
+        # FIXME: inefficient. do we care?
+        toks = list(str(s) for s in tokens)
+        token_lines = "\n".join(toks)
+
         static = self.query_one(".tokens", Static)
-        static.update(code)
+        static.update(token_lines)
+        static.styles.width = max(len(str(l)) for l in toks)
 
 
 class CodeViewer(App[None]):
+
+    CSS_PATH = "viewer.tcss"
 
     BINDINGS = [
         ("ctrl+q", "quit", "Quit"),
@@ -81,15 +88,16 @@ class CodeViewer(App[None]):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield SourceWidget(id="source")
-        yield TokenWidget(id="tokens")
+        with Container(id="body"):
+            yield SourceWidget(id="source")
+            yield TokenWidget(id="tokens")
         yield Footer()
 
     def _set_code(self, code: str) -> None:
         source = self.query_one("#source", SourceWidget)
         source.update_code(code)
-        tokens = list(tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline))
-        self.query_one("#tokens", TokenWidget).update(pprint.pformat(tokens))
+        tokens = tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline)
+        self.query_one("#tokens", TokenWidget).update(tokens)
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
