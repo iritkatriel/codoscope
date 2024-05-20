@@ -49,8 +49,7 @@ class SourceWidget(Container):
         # source = self.query_one(".editor", TextArea)
         # source.text = code
         source = self.query_one(".editor", Static)
-        source.update(
-            Syntax(
+        self._prerendered = Syntax(
                 code,
                 "python",
                 line_numbers=True,
@@ -58,7 +57,12 @@ class SourceWidget(Container):
                 indent_guides=True,
                 highlight_lines=highlight_lines,
             )
-        )
+        source.update(self._prerendered)
+
+    def highlight(self, lines: set[int]) -> None:
+        source = self.query_one(".editor", Static)
+        self._prerendered.highlight_lines = lines
+        source.update(self._prerendered)
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         self.post_message(HoverLine(event.y + 1))
@@ -163,8 +167,7 @@ class CodeViewer(App[None]):
 
     def on_hover_line(self, message: HoverLine) -> None:
         source = self.query_one("#source", SourceWidget)
-        # FIXME: this overwrites existing code!
-        source.update_code(SAMPLE_CODE, {message.lineno})
+        source.highlight({message.lineno})
 
 
 if __name__ == "__main__":
