@@ -6,9 +6,13 @@ from rich.syntax import Syntax
 from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.reactive import var
-from textual.widgets import Header, Footer, Static, TextArea
+from textual.widgets import Header, Footer, Static
 
-SAMPLE_CODE = """try:
+# Enable editing
+# from textual.widgets import TextArea
+
+SAMPLE_CODE = (
+    """try:
     if x:
         y = 12
     else:
@@ -16,23 +20,29 @@ SAMPLE_CODE = """try:
 except:
     y = 16
 """
+    * 8
+)
 
 
 class SourceWidget(Container):
 
     def compose(self) -> ComposeResult:
         with VerticalScroll():
-            yield TextArea.code_editor("", language="python", classes="editor")
+            # To use an editor
+            # yield TextArea.code_editor("", language="python", classes="editor")
+            yield Static(classes="editor", expand=True)
 
     def update_code(self, code: str) -> None:
-        source = self.query_one(".editor", TextArea)
-        source.text = code
-        # To use a Static display
-        # source.udpate(
-        #     Syntax(
-        #         code, "python", line_numbers=True, word_wrap=False, indent_guides=True
-        #     )
-        # )
+        # To use an editor
+        # source = self.query_one(".editor", TextArea)
+        # source.text = code
+        source = self.query_one(".editor", Static)
+        source.update(
+            Syntax(
+                code, "python", line_numbers=True, word_wrap=False, indent_guides=True
+            )
+        )
+
 
 class TokenWidget(Container):
 
@@ -49,22 +59,25 @@ class CodeViewer(App[None]):
 
     BINDINGS = [
         ("ctrl+q", "quit", "Quit"),
-        ("ctrl+1", "toggle_source", "Source"),
-        ("ctrl+2", "toggle_tokens", "Tokens"),
-        ("ctrl+3", "toggle_ast", "AST"),
-        ("ctrl+4", "toggle_opt_ast", "AST(opt.)"),
-        ("ctrl+5", "toggle_pseudo_bc", "Pseudo BC"),
-        ("ctrl+6", "toggle_opt_pseudo_bc", "Opt. BC"),
-        ("ctrl+7", "toggle_code_obj", "Final BC"),
+        ("f2", "toggle_source", "Source"),
+        ("f3", "toggle_tokens", "Tokens"),
+        ("f4", "toggle_ast", "AST"),
+        ("f5", "toggle_opt_ast", "AST(opt.)"),
+        ("f6", "toggle_pseudo_bc", "Pseudo BC"),
+        ("f7", "toggle_opt_pseudo_bc", "Opt. BC"),
+        ("f8", "toggle_code_obj", "Final BC"),
     ]
 
     show_source = var(True)
     show_tokens = var(True)
-    show_ast = var(True)
-    show_opt_ast = var(True)
-    show_pseudo_bc = var(True)
-    show_opt_pseudo_bc = var(True)
-    show_code_obj = var(True)
+    show_ast = var(False)
+    show_opt_ast = var(False)
+    show_pseudo_bc = var(False)
+    show_opt_pseudo_bc = var(False)
+    show_code_obj = var(False)
+
+    def watch_show_tokens(self, show_tokens: bool) -> None:
+        self.query_one("#tokens").styles.display = "block" if show_tokens else "none"
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -75,14 +88,15 @@ class CodeViewer(App[None]):
     def _set_code(self, code: str) -> None:
         source = self.query_one("#source", SourceWidget)
         source.update_code(code)
-        tokens = list(tokenize.tokenize(
-            io.BytesIO(code.encode('utf-8')).readline)
-        )        
+        tokens = list(tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline))
         self.query_one("#tokens", TokenWidget).update(pprint.pformat(tokens))
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
         self.query_one(".editor").focus()
+
+    def action_toggle_tokens(self):
+        self.show_tokens = not self.show_tokens
 
 
 if __name__ == "__main__":
