@@ -98,7 +98,7 @@ class CodeViewer(App[None]):
         source = self.query_one("#source", SourceWidget)
         source.update_code(code, set())
         tokens = tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline)
-        self.query_one("#tokens", TokenWidget).update(tokens)
+        self.query_one("#tokens", TokenWidget).set_tokens(tokens)
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
