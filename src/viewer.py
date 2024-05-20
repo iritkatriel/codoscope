@@ -9,6 +9,8 @@ from rich.style import Style
 from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll, ScrollableContainer
 from textual import events
+from textual.geometry import Region
+from textual import log
 from textual.message import Message
 from textual.reactive import var
 from textual.widgets import Header, Footer, Static
@@ -31,6 +33,7 @@ except:
 
 HIGHLIGHT = Style(bgcolor="bright_black")
 
+
 class HoverLine(Message):
 
     def __init__(self, lineno: int, *args: Any, **kwargs: Any) -> None:
@@ -41,7 +44,7 @@ class HoverLine(Message):
 class SourceWidget(Container):
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll():
+        with VerticalScroll(classes="scroller"):
             # To use an editor
             # yield TextArea.code_editor("", language="python", classes="editor")
             yield Static(classes="editor", expand=True)
@@ -61,15 +64,18 @@ class SourceWidget(Container):
         )
         source.update(self._prerendered)
 
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        self.post_message(HoverLine(event.y + 1))
+
     def highlight(self, line: int) -> None:
+        self.query_one(".scroller", VerticalScroll).scroll_to_region(
+            Region(0, line - 1, 0, 1)
+        )
         source = self.query_one(".editor", Static)
         self._prerendered.highlight_lines = {line}
         self._prerendered._stylized_ranges.clear()
-        self._prerendered.stylize_range(HIGHLIGHT, (line,0), (line+1,0))
+        self._prerendered.stylize_range(HIGHLIGHT, (line, 0), (line + 1, 0))
         source.update(self._prerendered)
-
-    def on_mouse_move(self, event: events.MouseMove) -> None:
-        self.post_message(HoverLine(event.y + 1))
 
 
 class TokenWidget(ScrollableContainer):
@@ -89,7 +95,7 @@ class TokenWidget(ScrollableContainer):
     def format_token(
         self, token: tokenize.TokenInfo, current_line: int
     ) -> tuple[str, int]:
-        line = token.start[0] + 1
+        line = token.start[0]
         if line != current_line:
             line_marker = "%4d: " % line
         else:
@@ -129,9 +135,17 @@ class TokenWidget(ScrollableContainer):
     def highlight(self, line: int) -> None:
         body = self.query_one(".tokens", Static)
         self._prerendered._stylized_ranges.clear()  # No public API for this?
-        for line in self.lineno_map[line]:
-            self._prerendered.stylize_range(HIGHLIGHT, (line,0), (line+1,0))
+        for highlight_line in self.lineno_map[line]:
+            self._prerendered.stylize_range(
+                HIGHLIGHT, (highlight_line, 0), (highlight_line + 1, 0)
+            )
         body.update(self._prerendered)
+
+        # Ensure it's visible
+        if line in self.lineno_map:
+            min_line = min(self.lineno_map[line]) - 1
+            max_line = max(self.lineno_map[line]) - 1
+            self.scroll_to_region(Region(0, min_line, 1, max_line - min_line + 1))
 
 
 class CodeViewer(App[None]):
@@ -182,6 +196,7 @@ class CodeViewer(App[None]):
         self.show_tokens = not self.show_tokens
 
     def on_hover_line(self, message: HoverLine) -> None:
+        log(f"hover: {message.lineno}")
         source = self.query_one("#source", SourceWidget)
         source.highlight(message.lineno)
         tokens = self.query_one("#tokens", TokenWidget)
