@@ -1,4 +1,5 @@
 import io
+from token import tok_name
 import tokenize
 from typing import Iterable
 from rich.syntax import Syntax
@@ -57,7 +58,7 @@ class TokenWidget(ScrollableContainer):
         else:
             line_marker = "      "
 
-        return (line_marker+f"{token}"), line
+        return (line_marker+f"{tok_name[token.exact_type]:10} {token.string!r} start={token.start} end={token.end}"), line
 
     def update(self, tokens: Iterable[tokenize.TokenInfo]) -> None:
         token_lines: list[str] = []
