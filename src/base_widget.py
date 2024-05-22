@@ -61,8 +61,9 @@ class BaseWidget(ScrollableContainer):
         static.styles.width = width
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
-        line = self.detail_positions[event.y]
-        self.post_message(HoverLine(line))
+        if event.y < len(self.detail_positions):
+            line = self.detail_positions[event.y]
+            self.post_message(HoverLine(line))
 
     def highlight(self, line: int) -> None:
         body = self.query_one(".display", Static)

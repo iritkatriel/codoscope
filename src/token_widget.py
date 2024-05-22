@@ -1,6 +1,6 @@
+import io
 import tokenize
 from token import tok_name
-from typing import Iterable
 
 
 from base_widget import BaseWidget, Detail
@@ -24,7 +24,8 @@ class TokenWidget(BaseWidget):
             end_line + 1,
         )
 
-    def set_tokens(self, tokens: Iterable[tokenize.TokenInfo]) -> None:
+    def set_code(self, code: str) -> None:
+        tokens = tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline)
         details: list[Detail] = []
         current_line = 0
         for t in tokens:

@@ -1,5 +1,3 @@
-import io
-import tokenize
 from rich.syntax import Syntax
 
 from textual.app import App, ComposeResult
@@ -12,6 +10,7 @@ from textual.widgets import Header, Footer, Static
 
 from events import HoverLine
 from styles import HIGHLIGHT
+from ast_widget import ASTWidget
 from token_widget import TokenWidget
 
 # Enable editing
@@ -31,7 +30,7 @@ class SourceWidget(Container):
             # yield TextArea.code_editor("", language="python", classes="editor")
             yield Static(classes="editor", expand=True)
 
-    def update_code(self, code: str, highlight_lines: set[int]) -> None:
+    def update_code(self, code: str) -> None:
         # To use an editor
         # source = self.query_one(".editor", TextArea)
         # source.text = code
@@ -42,7 +41,6 @@ class SourceWidget(Container):
             line_numbers=True,
             word_wrap=False,
             indent_guides=True,
-            highlight_lines=highlight_lines,
         )
         source.update(self._prerendered)
 
@@ -92,13 +90,14 @@ class CodeViewer(App[None]):
         with Container(id="body"):
             yield SourceWidget(id="source")
             yield TokenWidget(id="tokens")
+            yield ASTWidget(id="ast")
         yield Footer()
 
     def _set_code(self, code: str) -> None:
         source = self.query_one("#source", SourceWidget)
-        source.update_code(code, set())
-        tokens = tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline)
-        self.query_one("#tokens", TokenWidget).set_tokens(tokens)
+        source.update_code(code)
+        self.query_one("#tokens", TokenWidget).set_code(code)
+        self.query_one("#ast", ASTWidget).set_code(code)
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
