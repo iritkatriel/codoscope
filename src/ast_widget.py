@@ -48,6 +48,12 @@ def dump_iter(node: ast.AST) -> Iterable[Detail]:
 
 class ASTWidget(BaseWidget):
 
+    optimized: bool
+
+    def __init__(self, *args: Any, optimized: bool = False, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.optimized = optimized
+
     def set_code(self, code: str) -> None:
-        tree = ast.parse(code)
+        tree = ast.parse(code, optimize=self.optimized)
         self.update(dump_iter(tree))

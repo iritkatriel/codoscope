@@ -85,12 +85,19 @@ class CodeViewer(App[None]):
     def watch_show_tokens(self, show_tokens: bool) -> None:
         self.query_one("#tokens").styles.display = "block" if show_tokens else "none"
 
+    def watch_show_ast(self, show_ast: bool) -> None:
+        self.query_one("#ast").styles.display = "block" if show_ast else "none"
+
+    def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
+        self.query_one("#opt-ast").styles.display = "block" if show_opt_ast else "none"
+
     def compose(self) -> ComposeResult:
         yield Header()
         with Container(id="body"):
             yield SourceWidget(id="source")
             yield TokenWidget(id="tokens")
             yield ASTWidget(id="ast")
+            yield ASTWidget(id="opt-ast", optimized=True)
         yield Footer()
 
     def _set_code(self, code: str) -> None:
@@ -98,6 +105,7 @@ class CodeViewer(App[None]):
         source.update_code(code)
         self.query_one("#tokens", TokenWidget).set_code(code)
         self.query_one("#ast", ASTWidget).set_code(code)
+        self.query_one("#opt-ast", ASTWidget).set_code(code)
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
@@ -106,12 +114,22 @@ class CodeViewer(App[None]):
     def action_toggle_tokens(self) -> None:
         self.show_tokens = not self.show_tokens
 
+    def action_toggle_ast(self) -> None:
+        self.show_ast = not self.show_ast
+
+    def action_toggle_opt_ast(self) -> None:
+        self.show_opt_ast = not self.show_opt_ast
+
     def on_hover_line(self, message: HoverLine) -> None:
         log(f"hover: {message.lineno}")
         source = self.query_one("#source", SourceWidget)
         source.highlight(message.lineno)
         tokens = self.query_one("#tokens", TokenWidget)
         tokens.highlight(message.lineno)
+        ast = self.query_one("#ast", ASTWidget)
+        ast.highlight(message.lineno)
+        ast = self.query_one("#opt-ast", ASTWidget)
+        ast.highlight(message.lineno)
 
 
 if __name__ == "__main__":
