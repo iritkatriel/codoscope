@@ -55,5 +55,8 @@ class ASTWidget(BaseWidget):
         self.optimized = optimized
 
     def set_code(self, code: str) -> None:
-        tree = ast.parse(code, optimize=self.optimized)
+        if not self.optimized:
+            tree = ast.parse(code)
+        else:
+            tree = ast.parse(code, optimize=True)  # type: ignore
         self.update(dump_iter(tree))

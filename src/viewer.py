@@ -1,3 +1,5 @@
+import sys
+
 from rich.syntax import Syntax
 
 from textual.app import App, ComposeResult
@@ -13,14 +15,14 @@ from styles import HIGHLIGHT
 from ast_widget import ASTWidget
 from token_widget import TokenWidget
 
-# Enable editing
-# from textual.widgets import TextArea
+from textual.widgets import TextArea
 
 import bisect
 from pathlib import Path
 
 SAMPLE_CODE = Path(bisect.__file__).read_text()
-
+# This controls 3.13 features
+VERSION_3_13 = sys.version_info >= (3, 13)
 
 class SourceWidget(Container):
 
@@ -58,6 +60,26 @@ class SourceWidget(Container):
         source.update(self._prerendered)
 
 
+class EditWidget(Container):
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(classes="scroller"):
+            yield TextArea.code_editor("", language="python", classes="editor")
+
+    def update_code(self, code: str) -> None:
+        # To use an editor
+        source = self.query_one(".editor", TextArea)
+        source.text = code
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        self.post_message(HoverLine(event.y + 1))
+
+    def highlight(self, line: int) -> None:
+        self.query_one(".scroller", VerticalScroll).scroll_to_region(
+            Region(0, line - 1, 0, 1)
+        )
+
+
 class CodeViewer(App[None]):
 
     TITLE = "Compile Pipeline Explorer"
@@ -74,6 +96,9 @@ class CodeViewer(App[None]):
         ("f8", "toggle_code_obj", "Final BC"),
     ]
 
+    if not VERSION_3_13:
+        BINDINGS = [(k, id, label) for (k, id, label) in BINDINGS if id not in ("toggle_opt_ast", "toggle_pseudo_bc", "toggle_opt_pseudo_bc")]
+
     show_source = var(True)
     show_tokens = var(True)
     show_ast = var(False)
@@ -89,7 +114,8 @@ class CodeViewer(App[None]):
         self.query_one("#ast").styles.display = "block" if show_ast else "none"
 
     def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
-        self.query_one("#opt-ast").styles.display = "block" if show_opt_ast else "none"
+        if VERSION_3_13:
+            self.query_one("#opt-ast").styles.display = "block" if show_opt_ast else "none"
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -97,7 +123,8 @@ class CodeViewer(App[None]):
             yield SourceWidget(id="source")
             yield TokenWidget(id="tokens")
             yield ASTWidget(id="ast")
-            yield ASTWidget(id="opt-ast", optimized=True)
+            if VERSION_3_13:
+                yield ASTWidget(id="opt-ast", optimized=True)
         yield Footer()
 
     def _set_code(self, code: str) -> None:
@@ -105,7 +132,8 @@ class CodeViewer(App[None]):
         source.update_code(code)
         self.query_one("#tokens", TokenWidget).set_code(code)
         self.query_one("#ast", ASTWidget).set_code(code)
-        self.query_one("#opt-ast", ASTWidget).set_code(code)
+        if VERSION_3_13:
+            self.query_one("#opt-ast", ASTWidget).set_code(code)
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
@@ -128,8 +156,9 @@ class CodeViewer(App[None]):
         tokens.highlight(message.lineno)
         ast = self.query_one("#ast", ASTWidget)
         ast.highlight(message.lineno)
-        ast = self.query_one("#opt-ast", ASTWidget)
-        ast.highlight(message.lineno)
+        if VERSION_3_13:
+            ast = self.query_one("#opt-ast", ASTWidget)
+            ast.highlight(message.lineno)
 
 
 if __name__ == "__main__":
