@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ast
 import dis
 from typing import Any, Iterable, Literal, Sequence, TypeAlias
@@ -11,6 +13,7 @@ VERSION_3_13 = sys.version_info >= (3, 13)
 if VERSION_3_13:
     compiler_codegen: Any
     optimize_cfg: Any
+    assemble_code_object: Any
     from _testinternalcapi import compiler_codegen, optimize_cfg, assemble_code_object  # type: ignore
 else:
 
@@ -27,32 +30,32 @@ PseudoInstruction: TypeAlias = tuple[
 ]  # op, oparg, startline, endline, startcol, endcol
 
 
-class PseudoInstrsArgResolver(dis.ArgResolver):
-    def offset_from_jump_arg(self, op: int, arg: int, offset: int) -> int:
-        if op in dis.hasjump or op in dis.hasexc:
-            return arg
-        return super().offset_from_jump_arg(op, arg, offset)
+if VERSION_3_13:
 
+    class PseudoInstrsArgResolver(dis.ArgResolver):
+        def offset_from_jump_arg(self, op: int, arg: int, offset: int) -> int:
+            if op in dis.hasjump or op in dis.hasexc:
+                return arg
+            return super().offset_from_jump_arg(op, arg, offset)
 
-class AppendStream:
-    def __init__(self, append_to: list[Detail]) -> None:
-        self.target = append_to
-        self.target_line = 0
+    class AppendStream:
+        def __init__(self, append_to: list[Detail]) -> None:
+            self.target = append_to
+            self.target_line = 0
 
-    def write(self, line: str) -> None:
-        if line.strip():
-            self.target.append((line, self.target_line, self.target_line + 1))
+        def write(self, line: str) -> None:
+            if line.strip():
+                self.target.append((line, self.target_line, self.target_line + 1))
 
+    class Formatter(dis.Formatter):
+        file: AppendStream
 
-class Formatter(dis.Formatter):
-    file: AppendStream
-
-    def print_instruction(
-        self, instr: dis.Instruction, mark_as_current: bool = False
-    ) -> None:
-        if instr.line_number:
-            self.file.target_line = instr.line_number
-        super().print_instruction(instr, mark_as_current=mark_as_current)
+        def print_instruction(
+            self, instr: dis.Instruction, mark_as_current: bool = False
+        ) -> None:
+            if instr.line_number:
+                self.file.target_line = instr.line_number
+            super().print_instruction(instr, mark_as_current=mark_as_current)
 
 
 def _get_instructions(
@@ -88,35 +91,38 @@ def _get_instructions(
 
 
 def _disassemble(
-    insts: Sequence[PseudoInstruction], co_consts: Sequence[object], title: str
+    insts: Sequence[PseudoInstruction | dis.Instruction],
+    co_consts: Sequence[object],
+    title: str,
 ) -> Iterable[Detail]:
-    jump_targets = [
-        target for op, target, *_ in insts if op in dis.hasjump or op in dis.hasexc
-    ]
-    labels_map = {offset: i for i, offset in enumerate(jump_targets, start=1)}
-
-    # V1
-
-    # resolver = PseudoInstrsArgResolver(co_consts=co_consts, labels_map=labels_map)
-
-    # offset = 0
-    # for opcode, oparg, sl, el, sc, ec in insts:
-    #     argval, argrepr = resolver.get_argval_argrepr(opcode, oparg, offset)
-    #     yield f"{dis.opname[opcode]:24} {argrepr}", sl, el+1
-    #     offset += 2
-
-    # V2
-    label_width = 4 + len(str(len(labels_map)))
-    arg_resolver = PseudoInstrsArgResolver(co_consts=co_consts, labels_map=labels_map)
-
     result: list[Detail] = []
-    dis.print_instructions(
-        _get_instructions(insts, arg_resolver),
-        None,  # exception_entries
-        Formatter(file=AppendStream(result), lineno_width=6, label_width=label_width),
-    )
-    yield title, -1, -1
-    yield from result
+    if VERSION_3_13:
+        jump_targets = [
+            target for op, target, *_ in insts if op in dis.hasjump or op in dis.hasexc
+        ]
+        labels_map = {offset: i for i, offset in enumerate(jump_targets, start=1)}
+
+        label_width = 4 + len(str(len(labels_map)))
+        arg_resolver = PseudoInstrsArgResolver(
+            co_consts=co_consts, labels_map=labels_map
+        )
+
+        dis.print_instructions(
+            _get_instructions(insts, arg_resolver),
+            None,  # exception_entries
+            Formatter(
+                file=AppendStream(result), lineno_width=6, label_width=label_width
+            ),
+        )
+        return result
+    else:
+        line = 0
+        for i in insts:
+            assert isinstance(i, dis.Instruction)
+            if i.positions:
+                line = i.positions.lineno or line
+            result.append((i._disassemble(), line, line + 1))
+        return result
 
 
 class BytecodeWidget(BaseWidget):
@@ -132,23 +138,34 @@ class BytecodeWidget(BaseWidget):
         self.mode = mode
 
     def set_code(self, code: str) -> None:
-        if self.mode in ("pseudo", "optimized"):
-            insts, metadata = compiler_codegen(
-                ast.parse(code, optimize=1), "<source>", 0
-            )
+        filename = "<source>"
+        if VERSION_3_13:
+            insts, metadata = compiler_codegen(ast.parse(code, optimize=1), filename, 0)
             co_consts = [
                 p[1] for p in sorted([(v, k) for k, v in metadata["consts"].items()])
             ]
 
-            if self.mode == "optimized":
+            if self.mode in ("optimized", "compiled"):
+                # Optimize
                 nlocals = 0
                 insts = optimize_cfg(insts, co_consts, nlocals)
 
-            self.update(
-                _disassemble(
-                    insts.get_instructions(), co_consts, f"<{self.mode} bytecode>"
-                )
-            )
+            if self.mode == "compiled":
+                # Assemble
+                metadata["consts"] = {name: i for i, name in enumerate(co_consts)}
+                from test.test_compiler_assemble import IsolatedAssembleTests
+
+                IsolatedAssembleTests().complete_metadata(metadata)
+                co = assemble_code_object(filename, insts, metadata)
+                bytecode = dis.Bytecode(co)
+                output = list(bytecode)
+            else:
+                output = insts.get_instructions()
+
+            self.update(_disassemble(output, co_consts, f"<{self.mode} bytecode>"))
         else:
             assert self.mode == "compiled"
-            pass
+            co = compile(code, filename, "exec")
+            insts = list(dis.Bytecode(co))
+            co_consts = co.co_consts
+            self.update(_disassemble(insts, co_consts, f"<{self.mode} bytecode>"))

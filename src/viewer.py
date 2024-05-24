@@ -18,10 +18,18 @@ from token_widget import TokenWidget
 
 from textual.widgets import TextArea
 
-import bisect
-from pathlib import Path
+SAMPLE_CODE = """
+"Fibonacci Demo"
 
-SAMPLE_CODE = Path(bisect.__file__).read_text()
+a, b = 0, 1
+for _ in range(12):
+    a, b = b, a+b
+    print(a)
+
+del a
+del b
+"""
+
 # This controls 3.13 features
 VERSION_3_13 = sys.version_info >= (3, 13)
 
@@ -34,7 +42,7 @@ class SourceWidget(Container):
             # yield TextArea.code_editor("", language="python", classes="editor")
             yield Static(classes="editor", expand=True)
 
-    def update_code(self, code: str) -> None:
+    def set_code(self, code: str) -> None:
         # To use an editor
         # source = self.query_one(".editor", TextArea)
         # source.text = code
@@ -68,7 +76,7 @@ class EditWidget(Container):
         with VerticalScroll(classes="scroller"):
             yield TextArea.code_editor("", language="python", classes="editor")
 
-    def update_code(self, code: str) -> None:
+    def set_code(self, code: str) -> None:
         # To use an editor
         source = self.query_one(".editor", TextArea)
         source.text = code
@@ -139,6 +147,11 @@ class CodeViewer(App[None]):
                 "block" if show_opt_pseudo_bc else "none"
             )
 
+    def watch_show_code_obj(self, show_code_obj: bool) -> None:
+        self.query_one("#opt-code-obj").styles.display = (
+            "block" if show_code_obj else "none"
+        )
+
     def compose(self) -> ComposeResult:
         yield Header()
         with Container(id="body"):
@@ -149,17 +162,19 @@ class CodeViewer(App[None]):
                 yield ASTWidget(id="opt-ast", optimized=True)
                 yield BytecodeWidget(id="pseudo-bc", mode="pseudo")
                 yield BytecodeWidget(id="opt-pseudo-bc", mode="optimized")
+            yield BytecodeWidget(id="opt-code-obj", mode="compiled")
         yield Footer()
 
     def _set_code(self, code: str) -> None:
         source = self.query_one("#source", SourceWidget)
-        source.update_code(code)
+        source.set_code(code)
         self.query_one("#tokens", TokenWidget).set_code(code)
         self.query_one("#ast", ASTWidget).set_code(code)
         if VERSION_3_13:
             self.query_one("#opt-ast", ASTWidget).set_code(code)
             self.query_one("#pseudo-bc", BytecodeWidget).set_code(code)
             self.query_one("#opt-pseudo-bc", BytecodeWidget).set_code(code)
+        self.query_one("#opt-code-obj", BytecodeWidget).set_code(code)
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
@@ -180,6 +195,9 @@ class CodeViewer(App[None]):
     def action_toggle_opt_pseudo_bc(self) -> None:
         self.show_opt_pseudo_bc = not self.show_opt_pseudo_bc
 
+    def action_toggle_code_obj(self) -> None:
+        self.show_code_obj = not self.show_code_obj
+
     def on_hover_line(self, message: HoverLine) -> None:
         log(f"hover: {message.lineno}")
         source = self.query_one("#source", SourceWidget)
@@ -195,6 +213,8 @@ class CodeViewer(App[None]):
             pseudo_bc.highlight(message.lineno)
             opt_pseudo_bc = self.query_one("#opt-pseudo-bc", BytecodeWidget)
             opt_pseudo_bc.highlight(message.lineno)
+        opt_code_obj = self.query_one("#opt-code-obj", BytecodeWidget)
+        opt_code_obj.highlight(message.lineno)
 
 
 if __name__ == "__main__":
