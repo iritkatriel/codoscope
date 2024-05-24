@@ -19,7 +19,7 @@ def _has_children(node: ast.AST) -> bool:
 def _attr_repr(node: ast.AST, attr: str) -> str:
     value = getattr(node, attr, ...)
     match value:
-        case ast.Load() | ast.Store():
+        case ast.Load() | ast.Store() | ast.Del():
             return value.__class__.__name__
         case ast.AST:
             raise ValueError("Should not get an AST node here of type {node.__class__}")
