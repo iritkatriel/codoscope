@@ -15,6 +15,7 @@ def _has_children(node: ast.AST) -> bool:
             return True
     return False
 
+
 def _attr_repr(node: ast.AST, attr: str) -> str:
     value = getattr(node, attr, ...)
     match value:
@@ -24,6 +25,7 @@ def _attr_repr(node: ast.AST, attr: str) -> str:
             raise ValueError("Should not get an AST node here of type {node.__class__}")
         case _:
             return repr(value)
+
 
 def dump_iter(node: ast.AST) -> Iterable[Detail]:
     SENTINEL = object()
@@ -48,10 +50,10 @@ def dump_iter(node: ast.AST) -> Iterable[Detail]:
                             continue
                         yield from _format(value, level + 1, start, f"{name}=")
             case [single_value] if not _has_children(single_value):
-                dets = list(_format(single_value, level, last_line, prepend+"["))
+                dets = list(_format(single_value, level, last_line, prepend + "["))
                 assert len(dets) == 1
                 text, start, end = dets[0]
-                yield text+"]", start, end
+                yield text + "]", start, end
             case [*values]:
                 yield f"{prefix}[]", last_line, last_line + 1
                 for value in values:

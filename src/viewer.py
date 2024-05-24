@@ -24,6 +24,7 @@ SAMPLE_CODE = Path(bisect.__file__).read_text()
 # This controls 3.13 features
 VERSION_3_13 = sys.version_info >= (3, 13)
 
+
 class SourceWidget(Container):
 
     def compose(self) -> ComposeResult:
@@ -85,19 +86,25 @@ class CodeViewer(App[None]):
     TITLE = "Compile Pipeline Explorer"
     CSS_PATH = "viewer.tcss"
 
-    BINDINGS = [
-        ("ctrl+q", "quit", "Quit"),
-        ("f2", "toggle_source", "Source"),
-        ("f3", "toggle_tokens", "Tokens"),
-        ("f4", "toggle_ast", "AST"),
-        ("f5", "toggle_opt_ast", "AST(opt.)"),
-        ("f6", "toggle_pseudo_bc", "Pseudo BC"),
-        ("f7", "toggle_opt_pseudo_bc", "Opt. BC"),
-        ("f8", "toggle_code_obj", "Final BC"),
-    ]
-
-    if not VERSION_3_13:
-        BINDINGS = [(k, id, label) for (k, id, label) in BINDINGS if id not in ("toggle_opt_ast", "toggle_pseudo_bc", "toggle_opt_pseudo_bc")]
+    if VERSION_3_13:
+        BINDINGS = [
+            ("ctrl+q", "quit", "Quit"),
+            ("f2", "toggle_source", "Source"),
+            ("f3", "toggle_tokens", "Tokens"),
+            ("f4", "toggle_ast", "AST"),
+            ("f5", "toggle_opt_ast", "AST(opt.)"),
+            ("f6", "toggle_pseudo_bc", "Pseudo BC"),
+            ("f7", "toggle_opt_pseudo_bc", "Opt. BC"),
+            ("f8", "toggle_code_obj", "Final BC"),
+        ]
+    else:
+        BINDINGS = [
+            ("ctrl+q", "quit", "Quit"),
+            ("f2", "toggle_source", "Source"),
+            ("f3", "toggle_tokens", "Tokens"),
+            ("f4", "toggle_ast", "AST"),
+            ("f8", "toggle_code_obj", "Final BC"),
+        ]
 
     show_source = var(True)
     show_tokens = var(True)
@@ -115,7 +122,9 @@ class CodeViewer(App[None]):
 
     def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
         if VERSION_3_13:
-            self.query_one("#opt-ast").styles.display = "block" if show_opt_ast else "none"
+            self.query_one("#opt-ast").styles.display = (
+                "block" if show_opt_ast else "none"
+            )
 
     def compose(self) -> ComposeResult:
         yield Header()

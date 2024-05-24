@@ -43,10 +43,10 @@ class BaseWidget(ScrollableContainer):
         self.lineno_map.clear()
         self.detail_positions = []
         width = 0
-        for detail_idx, detail in enumerate(details):
+        for detail_idx, detail in enumerate(details, start=1):
             formatted, start_line, end_line = detail
             for lineno in range(start_line, end_line):
-                self.lineno_map[lineno].add(detail_idx + 1)
+                self.lineno_map[lineno].add(detail_idx)
             self.detail_positions.append(start_line)
             output_lines.append(formatted)
             width = max(width, len(formatted))
@@ -54,7 +54,7 @@ class BaseWidget(ScrollableContainer):
         static = self.query_one(".display", Static)
         self._prerendered = Syntax(
             "\n".join(output_lines),
-            "text",
+            "python",
             word_wrap=False,
         )
         static.update(self._prerendered)
