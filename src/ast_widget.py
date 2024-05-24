@@ -38,7 +38,7 @@ def dump_iter(node: ast.AST) -> Iterable[Detail]:
         match node:
             case ast.AST(_fields=fields):
                 start = getattr(node, "lineno", last_line)
-                if 'body' not in fields:
+                if "body" not in fields:
                     end = getattr(node, "end_lineno", start) + 1
                 else:
                     # For statements with body, we only associate them with the first

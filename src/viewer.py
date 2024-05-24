@@ -10,6 +10,7 @@ from textual import log
 from textual.reactive import var
 from textual.widgets import Header, Footer, Static
 
+from bytecode_widget import BytecodeWidget
 from events import HoverLine
 from styles import HIGHLIGHT
 from ast_widget import ASTWidget
@@ -83,7 +84,7 @@ class EditWidget(Container):
 
 class CodeViewer(App[None]):
 
-    TITLE = "Compile Pipeline Explorer"
+    TITLE = "Compiler Pipeline Explorer"
     CSS_PATH = "viewer.tcss"
 
     if VERSION_3_13:
@@ -126,6 +127,18 @@ class CodeViewer(App[None]):
                 "block" if show_opt_ast else "none"
             )
 
+    def watch_show_pseudo_bc(self, show_pseudo_bc: bool) -> None:
+        if VERSION_3_13:
+            self.query_one("#pseudo-bc").styles.display = (
+                "block" if show_pseudo_bc else "none"
+            )
+
+    def watch_show_opt_pseudo_bc(self, show_opt_pseudo_bc: bool) -> None:
+        if VERSION_3_13:
+            self.query_one("#opt-pseudo-bc").styles.display = (
+                "block" if show_opt_pseudo_bc else "none"
+            )
+
     def compose(self) -> ComposeResult:
         yield Header()
         with Container(id="body"):
@@ -134,6 +147,8 @@ class CodeViewer(App[None]):
             yield ASTWidget(id="ast")
             if VERSION_3_13:
                 yield ASTWidget(id="opt-ast", optimized=True)
+                yield BytecodeWidget(id="pseudo-bc", mode="pseudo")
+                yield BytecodeWidget(id="opt-pseudo-bc", mode="optimized")
         yield Footer()
 
     def _set_code(self, code: str) -> None:
@@ -143,6 +158,8 @@ class CodeViewer(App[None]):
         self.query_one("#ast", ASTWidget).set_code(code)
         if VERSION_3_13:
             self.query_one("#opt-ast", ASTWidget).set_code(code)
+            self.query_one("#pseudo-bc", BytecodeWidget).set_code(code)
+            self.query_one("#opt-pseudo-bc", BytecodeWidget).set_code(code)
 
     def on_mount(self) -> None:
         self._set_code(SAMPLE_CODE)
@@ -157,6 +174,12 @@ class CodeViewer(App[None]):
     def action_toggle_opt_ast(self) -> None:
         self.show_opt_ast = not self.show_opt_ast
 
+    def action_toggle_pseudo_bc(self) -> None:
+        self.show_pseudo_bc = not self.show_pseudo_bc
+
+    def action_toggle_opt_pseudo_bc(self) -> None:
+        self.show_opt_pseudo_bc = not self.show_opt_pseudo_bc
+
     def on_hover_line(self, message: HoverLine) -> None:
         log(f"hover: {message.lineno}")
         source = self.query_one("#source", SourceWidget)
@@ -166,8 +189,12 @@ class CodeViewer(App[None]):
         ast = self.query_one("#ast", ASTWidget)
         ast.highlight(message.lineno)
         if VERSION_3_13:
-            ast = self.query_one("#opt-ast", ASTWidget)
-            ast.highlight(message.lineno)
+            opt_ast = self.query_one("#opt-ast", ASTWidget)
+            opt_ast.highlight(message.lineno)
+            pseudo_bc = self.query_one("#pseudo-bc", BytecodeWidget)
+            pseudo_bc.highlight(message.lineno)
+            opt_pseudo_bc = self.query_one("#opt-pseudo-bc", BytecodeWidget)
+            opt_pseudo_bc.highlight(message.lineno)
 
 
 if __name__ == "__main__":
