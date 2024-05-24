@@ -38,7 +38,14 @@ def dump_iter(node: ast.AST) -> Iterable[Detail]:
         match node:
             case ast.AST(_fields=fields):
                 start = getattr(node, "lineno", last_line)
-                end = getattr(node, "end_lineno", start) + 1
+                if 'body' not in fields:
+                    end = getattr(node, "end_lineno", start) + 1
+                else:
+                    # For statements with body, we only associate them with the first
+                    # line in the statement. Otherwise, a hover in a nested statement
+                    # will try to highlight every containing statement.
+                    end = start + 1
+
                 if not _has_children(node):
                     args = (f"{name}={_attr_repr(node, name)}" for name in fields)
                     yield f"{prefix}{node.__class__.__name__}({', '.join(args)})", start, end
