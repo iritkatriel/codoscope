@@ -1,22 +1,16 @@
 import sys
 
-from rich.syntax import Syntax
-
 from textual.app import App, ComposeResult
-from textual.containers import Container, VerticalScroll
-from textual import events
-from textual.geometry import Region
+from textual.containers import Container
 from textual import log
 from textual.reactive import var
-from textual.widgets import Header, Footer, Static
+from textual.widgets import Header, Footer
 
 from bytecode_widget import BytecodeWidget
 from events import HoverLine
-from styles import HIGHLIGHT
 from ast_widget import ASTWidget
 from token_widget import TokenWidget
-
-from textual.widgets import TextArea
+from source_widgets import SourceWidget, EditWidget
 
 SAMPLE_CODE = """
 "Fibonacci Demo"
@@ -32,62 +26,6 @@ del b
 
 # This controls 3.13 features
 VERSION_3_13 = sys.version_info >= (3, 13)
-
-
-class SourceWidget(Container):
-
-    def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="scroller"):
-            # To use an editor
-            # yield TextArea.code_editor("", language="python", classes="editor")
-            yield Static(classes="editor", expand=True)
-
-    def set_code(self, code: str) -> None:
-        # To use an editor
-        # source = self.query_one(".editor", TextArea)
-        # source.text = code
-        source = self.query_one(".editor", Static)
-        self._prerendered = Syntax(
-            code,
-            "python",
-            line_numbers=True,
-            word_wrap=False,
-            indent_guides=True,
-        )
-        source.update(self._prerendered)
-
-    def on_mouse_move(self, event: events.MouseMove) -> None:
-        self.post_message(HoverLine(event.y + 1))
-
-    def highlight(self, line: int) -> None:
-        self.query_one(".scroller", VerticalScroll).scroll_to_region(
-            Region(0, line - 1, 0, 1)
-        )
-        source = self.query_one(".editor", Static)
-        self._prerendered.highlight_lines = {line}
-        self._prerendered._stylized_ranges.clear()
-        self._prerendered.stylize_range(HIGHLIGHT, (line, 0), (line + 1, 0))
-        source.update(self._prerendered)
-
-
-class EditWidget(Container):
-
-    def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="scroller"):
-            yield TextArea.code_editor("", language="python", classes="editor")
-
-    def set_code(self, code: str) -> None:
-        # To use an editor
-        source = self.query_one(".editor", TextArea)
-        source.text = code
-
-    def on_mouse_move(self, event: events.MouseMove) -> None:
-        self.post_message(HoverLine(event.y + 1))
-
-    def highlight(self, line: int) -> None:
-        self.query_one(".scroller", VerticalScroll).scroll_to_region(
-            Region(0, line - 1, 0, 1)
-        )
 
 
 class CodeViewer(App[None]):
