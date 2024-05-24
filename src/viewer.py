@@ -12,18 +12,6 @@ from ast_widget import ASTWidget
 from token_widget import TokenWidget
 from source_widgets import SourceWidget, EditWidget
 
-SAMPLE_CODE = """
-"Fibonacci Demo"
-
-a, b = 0, 1
-for _ in range(12):
-    a, b = b, a+b
-    print(a)
-
-del a
-del b
-"""
-
 # This controls 3.13 features
 VERSION_3_13 = sys.version_info >= (3, 13)
 
@@ -32,6 +20,8 @@ class CodeViewer(App[None]):
 
     TITLE = "Compiler Pipeline Explorer"
     CSS_PATH = "viewer.tcss"
+
+    startup_code: str = ""
 
     if VERSION_3_13:
         BINDINGS = [
@@ -103,7 +93,7 @@ class CodeViewer(App[None]):
             yield BytecodeWidget(id="opt-code-obj", mode="compiled")
         yield Footer()
 
-    def _set_code(self, code: str) -> None:
+    def set_code(self, code: str) -> None:
         source = self.query_one("#source", SourceWidget)
         source.set_code(code)
         self.query_one("#tokens", TokenWidget).set_code(code)
@@ -115,7 +105,7 @@ class CodeViewer(App[None]):
         self.query_one("#opt-code-obj", BytecodeWidget).set_code(code)
 
     def on_mount(self) -> None:
-        self._set_code(SAMPLE_CODE)
+        self.set_code(self.startup_code)
         self.query_one(".editor").focus()
 
     def action_toggle_tokens(self) -> None:
@@ -157,4 +147,15 @@ class CodeViewer(App[None]):
 
 if __name__ == "__main__":
     app = CodeViewer()
+    app.startup_code = """
+"Fibonacci Demo"
+
+a, b = 0, 1
+for _ in range(12):
+    a, b = b, a+b
+    print(a)
+
+del a
+del b
+"""
     app.run()
