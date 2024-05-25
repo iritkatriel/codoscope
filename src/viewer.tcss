@@ -1,5 +1,6 @@
 CodeViewer #body {
-    layout: horizontal;
+    layout: grid;
+    grid-size: 3;
 }
 
 .title {

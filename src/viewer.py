@@ -61,36 +61,39 @@ class CodeViewer(App[None]):
     show_opt_pseudo_bc = var(False)
     show_code_obj = var(False)
 
-    def watch_show_tokens(self, show_tokens: bool) -> None:
-        self.query_one("#tokens").parent.styles.display = (
-            "block" if show_tokens else "none"
+    def update_visibility(self, id: str, visible: bool) -> None:
+        self.query_one(f"#{id}").parent.styles.display = "block" if visible else "none"
+        visible_panels = (
+            self.show_source
+            + self.show_tokens
+            + self.show_ast
+            + self.show_opt_ast
+            + self.show_pseudo_bc
+            + self.show_opt_pseudo_bc
+            + self.show_code_obj
         )
+        self.query_one("#body").styles.grid_size_columns = min(visible_panels, 3)
+
+    def watch_show_tokens(self, show_tokens: bool) -> None:
+        self.update_visibility("tokens", show_tokens)
 
     def watch_show_ast(self, show_ast: bool) -> None:
-        self.query_one("#ast").parent.styles.display = "block" if show_ast else "none"
+        self.update_visibility("ast", show_ast)
 
     def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
         if VERSION_3_13:
-            self.query_one("#opt-ast").parent.styles.display = (
-                "block" if show_opt_ast else "none"
-            )
+            self.update_visibility("opt-ast", show_opt_ast)
 
     def watch_show_pseudo_bc(self, show_pseudo_bc: bool) -> None:
         if VERSION_3_13:
-            self.query_one("#pseudo-bc").parent.styles.display = (
-                "block" if show_pseudo_bc else "none"
-            )
+            self.update_visibility("pseudo-bc", show_pseudo_bc)
 
     def watch_show_opt_pseudo_bc(self, show_opt_pseudo_bc: bool) -> None:
         if VERSION_3_13:
-            self.query_one("#opt-pseudo-bc").parent.styles.display = (
-                "block" if show_opt_pseudo_bc else "none"
-            )
+            self.update_visibility("opt-pseudo-bc", show_opt_pseudo_bc)
 
     def watch_show_code_obj(self, show_code_obj: bool) -> None:
-        self.query_one("#opt-code-obj").parent.styles.display = (
-            "block" if show_code_obj else "none"
-        )
+        self.update_visibility("opt-code-obj", show_code_obj)
 
     def compose(self) -> ComposeResult:
         yield Header()
