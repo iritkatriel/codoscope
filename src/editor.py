@@ -46,7 +46,7 @@ class EditorScreen(Screen[str | None]):
         except SyntaxError as e:
             text_area = self.query_one("EditorTextArea", EditorTextArea)
             if e.lineno and e.offset:
-                text_area.cursor_location = (e.lineno-1, e.offset)
+                text_area.cursor_location = (e.lineno - 1, e.offset)
             self.notify(f"Could not compile: {e}", severity="error")
 
     def on_editor_text_area_cancel(self, message: EditorTextArea.Cancel):

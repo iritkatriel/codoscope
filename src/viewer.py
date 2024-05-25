@@ -1,11 +1,11 @@
 import sys
-from typing import cast
+from typing import Iterable, cast
 
 from textual.app import App, ComposeResult
-from textual.containers import Container
-from textual import log
+from textual.containers import Container, Vertical
+from textual import log, widget
 from textual.reactive import var
-from textual.widgets import Header, Footer
+from textual.widgets import Header, Footer, Static
 
 from bytecode_widget import BytecodeWidget
 from events import HoverLine
@@ -16,6 +16,12 @@ from editor import EditorScreen
 
 # This controls 3.13 features
 VERSION_3_13 = sys.version_info >= (3, 13)
+
+
+def widget_with_title(w: widget.Widget, title: str) -> Iterable[widget.Widget]:
+    with Vertical():
+        yield Static(title, classes="title")
+        yield w
 
 
 class CodeViewer(App[None]):
@@ -56,45 +62,57 @@ class CodeViewer(App[None]):
     show_code_obj = var(False)
 
     def watch_show_tokens(self, show_tokens: bool) -> None:
-        self.query_one("#tokens").styles.display = "block" if show_tokens else "none"
+        self.query_one("#tokens").parent.styles.display = (
+            "block" if show_tokens else "none"
+        )
 
     def watch_show_ast(self, show_ast: bool) -> None:
-        self.query_one("#ast").styles.display = "block" if show_ast else "none"
+        self.query_one("#ast").parent.styles.display = "block" if show_ast else "none"
 
     def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
         if VERSION_3_13:
-            self.query_one("#opt-ast").styles.display = (
+            self.query_one("#opt-ast").parent.styles.display = (
                 "block" if show_opt_ast else "none"
             )
 
     def watch_show_pseudo_bc(self, show_pseudo_bc: bool) -> None:
         if VERSION_3_13:
-            self.query_one("#pseudo-bc").styles.display = (
+            self.query_one("#pseudo-bc").parent.styles.display = (
                 "block" if show_pseudo_bc else "none"
             )
 
     def watch_show_opt_pseudo_bc(self, show_opt_pseudo_bc: bool) -> None:
         if VERSION_3_13:
-            self.query_one("#opt-pseudo-bc").styles.display = (
+            self.query_one("#opt-pseudo-bc").parent.styles.display = (
                 "block" if show_opt_pseudo_bc else "none"
             )
 
     def watch_show_code_obj(self, show_code_obj: bool) -> None:
-        self.query_one("#opt-code-obj").styles.display = (
+        self.query_one("#opt-code-obj").parent.styles.display = (
             "block" if show_code_obj else "none"
         )
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Container(id="body"):
-            yield SourceWidget(id="source")
-            yield TokenWidget(id="tokens")
-            yield ASTWidget(id="ast")
+            yield from widget_with_title(SourceWidget(id="source"), "Source (1)")
+            yield from widget_with_title(TokenWidget(id="tokens"), "Tokens (2)")
+            yield from widget_with_title(ASTWidget(id="ast"), "AST (3)")
             if VERSION_3_13:
-                yield ASTWidget(id="opt-ast", optimized=True)
-                yield BytecodeWidget(id="pseudo-bc", mode="pseudo")
-                yield BytecodeWidget(id="opt-pseudo-bc", mode="optimized")
-            yield BytecodeWidget(id="opt-code-obj", mode="compiled")
+                yield from widget_with_title(
+                    ASTWidget(id="opt-ast", optimized=True), "Optimized AST (4)"
+                )
+                yield from widget_with_title(
+                    BytecodeWidget(id="pseudo-bc", mode="pseudo"), "Pseudo Bytecode (5)"
+                )
+                yield from widget_with_title(
+                    BytecodeWidget(id="opt-pseudo-bc", mode="optimized"),
+                    "Optimized Pseudo Bytecode (6)",
+                )
+            yield from widget_with_title(
+                BytecodeWidget(id="opt-code-obj", mode="compiled"),
+                "Assembled Bytecode (7)",
+            )
         yield Footer()
 
     def set_code(self, code: str) -> None:

@@ -1,3 +1,10 @@
 CodeViewer #body {
     layout: horizontal;
 }
+
+.title {
+    text-style: bold;
+    text-align: center;
+    background: blue;
+    margin: 0 2 0 0;
+}
