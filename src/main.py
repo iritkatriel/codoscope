@@ -5,6 +5,7 @@ import sys
 
 from viewer import CodeViewer
 
+
 def main(args: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog="codoscope",
@@ -24,7 +25,10 @@ def main(args: list[str]) -> None:
         code = parsed.command
     elif parsed.module:
         src_path = importlib.import_module(parsed.module).__file__
-        code = Path(src_path).read_text()
+        if src_path:
+            code = Path(src_path).read_text()
+        else:
+            raise ValueError(f"module {parsed.module} has no source")
     else:
         code = "# Enter code here"
 

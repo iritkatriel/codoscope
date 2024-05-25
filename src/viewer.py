@@ -1,4 +1,5 @@
 import sys
+from typing import cast
 
 from textual.app import App, ComposeResult
 from textual.containers import Container
@@ -10,7 +11,8 @@ from bytecode_widget import BytecodeWidget
 from events import HoverLine
 from ast_widget import ASTWidget
 from token_widget import TokenWidget
-from source_widgets import SourceWidget, EditWidget
+from source_widgets import SourceWidget
+from editor import EditorScreen
 
 # This controls 3.13 features
 VERSION_3_13 = sys.version_info >= (3, 13)
@@ -20,27 +22,29 @@ class CodeViewer(App[None]):
 
     TITLE = "Compiler Pipeline Explorer"
     CSS_PATH = "viewer.tcss"
+    SCREENS = {"editor": EditorScreen()}
 
     startup_code: str = ""
 
     if VERSION_3_13:
         BINDINGS = [
-            ("ctrl+q", "quit", "Quit"),
-            ("f2", "toggle_source", "Source"),
-            ("f3", "toggle_tokens", "Tokens"),
-            ("f4", "toggle_ast", "AST"),
-            ("f5", "toggle_opt_ast", "AST(opt.)"),
-            ("f6", "toggle_pseudo_bc", "Pseudo BC"),
-            ("f7", "toggle_opt_pseudo_bc", "Opt. BC"),
-            ("f8", "toggle_code_obj", "Final BC"),
+            ("q,escape", "quit", "Quit"),
+            ("e", "open_editor", "Editor"),
+            ("1", "toggle_source", "Source"),
+            ("2", "toggle_tokens", "Tokens"),
+            ("3", "toggle_ast", "AST"),
+            ("4", "toggle_opt_ast", "AST(opt.)"),
+            ("5", "toggle_pseudo_bc", "Pseudo BC"),
+            ("6", "toggle_opt_pseudo_bc", "Opt. BC"),
+            ("7", "toggle_code_obj", "Final BC"),
         ]
     else:
-        BINDINGS = [
-            ("ctrl+q", "quit", "Quit"),
-            ("f2", "toggle_source", "Source"),
-            ("f3", "toggle_tokens", "Tokens"),
-            ("f4", "toggle_ast", "AST"),
-            ("f8", "toggle_code_obj", "Final BC"),
+        BINDINGS = [  # type: ignore
+            ("q,escape", "quit", "Quit"),
+            ("1", "toggle_source", "Source"),
+            ("2", "toggle_tokens", "Tokens"),
+            ("3", "toggle_ast", "AST"),
+            ("7", "toggle_code_obj", "Final BC"),
         ]
 
     show_source = var(True)
@@ -94,6 +98,7 @@ class CodeViewer(App[None]):
         yield Footer()
 
     def set_code(self, code: str) -> None:
+        cast(EditorScreen, self.SCREENS["editor"]).set_code(code)
         source = self.query_one("#source", SourceWidget)
         source.set_code(code)
         self.query_one("#tokens", TokenWidget).set_code(code)
@@ -125,6 +130,13 @@ class CodeViewer(App[None]):
 
     def action_toggle_code_obj(self) -> None:
         self.show_code_obj = not self.show_code_obj
+
+    def action_open_editor(self) -> None:
+        def update_code(code: str | None) -> None:
+            if code is not None:
+                self.set_code(code)
+
+        self.push_screen("editor", update_code)
 
     def on_hover_line(self, message: HoverLine) -> None:
         log(f"hover: {message.lineno}")

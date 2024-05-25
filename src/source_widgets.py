@@ -4,7 +4,7 @@ from textual.app import ComposeResult
 from textual import events
 from textual.containers import Container, VerticalScroll
 from textual.geometry import Region
-from textual.widgets import TextArea, Static
+from textual.widgets import Static
 from styles import HIGHLIGHT
 
 from events import HoverLine
@@ -41,26 +41,6 @@ class SourceWidget(Container):
         )
         source = self.query_one(".editor", Static)
         self._prerendered.highlight_lines = {line}
-        self._prerendered._stylized_ranges.clear()
+        self._prerendered._stylized_ranges.clear()  # type: ignore
         self._prerendered.stylize_range(HIGHLIGHT, (line, 0), (line + 1, 0))
         source.update(self._prerendered)
-
-
-class EditWidget(Container):
-
-    def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="scroller"):
-            yield TextArea.code_editor("", language="python", classes="editor")
-
-    def set_code(self, code: str) -> None:
-        # To use an editor
-        source = self.query_one(".editor", TextArea)
-        source.text = code
-
-    def on_mouse_move(self, event: events.MouseMove) -> None:
-        self.post_message(HoverLine(event.y + 1))
-
-    def highlight(self, line: int) -> None:
-        self.query_one(".scroller", VerticalScroll).scroll_to_region(
-            Region(0, line - 1, 0, 1)
-        )
