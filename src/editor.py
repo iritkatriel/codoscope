@@ -40,7 +40,14 @@ class EditorScreen(Screen[str | None]):
         self.code = new_code
 
     def on_editor_text_area_save(self, message: EditorTextArea.Save):
-        self.dismiss(message.code)
+        try:
+            compile(message.code, "<editor>", "exec")
+            self.dismiss(message.code)
+        except SyntaxError as e:
+            text_area = self.query_one("EditorTextArea", EditorTextArea)
+            if e.lineno and e.offset:
+                text_area.cursor_location = (e.lineno-1, e.offset)
+            self.notify(f"Could not compile: {e}", severity="error")
 
     def on_editor_text_area_cancel(self, message: EditorTextArea.Cancel):
         self.dismiss(None)
