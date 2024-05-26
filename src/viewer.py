@@ -11,7 +11,7 @@ from bytecode_widget import BytecodeWidget
 from events import HoverLine
 from ast_widget import ASTWidget
 from token_widget import TokenWidget
-from source_widgets import SourceWidget
+from source_widget import SourceWidget
 from editor import EditorScreen
 
 # This controls 3.13 features
