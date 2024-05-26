@@ -42,6 +42,7 @@ class EditorScreen(Screen[str | None]):
     def on_editor_text_area_save(self, message: EditorTextArea.Save):
         try:
             compile(message.code, "<editor>", "exec")
+            self.code = message.code
             self.dismiss(message.code)
         except SyntaxError as e:
             text_area = self.query_one("EditorTextArea", EditorTextArea)
@@ -50,4 +51,6 @@ class EditorScreen(Screen[str | None]):
             self.notify(f"Could not compile: {e}", severity="error")
 
     def on_editor_text_area_cancel(self, message: EditorTextArea.Cancel):
+        text_area = self.query_one("EditorTextArea", EditorTextArea)
+        text_area.text = self.code
         self.dismiss(None)

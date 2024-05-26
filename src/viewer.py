@@ -47,6 +47,7 @@ class CodeViewer(App[None]):
     else:
         BINDINGS = [  # type: ignore
             ("q,escape", "quit", "Quit"),
+            ("e", "open_editor", "Editor"),
             ("1", "toggle_source", "Source"),
             ("2", "toggle_tokens", "Tokens"),
             ("3", "toggle_ast", "AST"),
