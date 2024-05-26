@@ -21,7 +21,8 @@ You can run this code under python 3.12 or lower, but many features will be disa
 ### Step by step
 
 The code is not packaged, due to some dependencies not being available yet in
-Python 3.13. You can run the following commands
+Python 3.13 (See [this issue](https://github.com/grantjenks/py-tree-sitter-languages/issues/66)).
+I was able to get everything up by running the following commands:
 
 
 ```sh
