@@ -29,7 +29,6 @@ I was able to get everything up by running the following commands:
 python3.13 -m venv env
 git clone https://github.com/grantjenks/py-tree-sitter-languages.git
 git clone https://github.com/dmoisset/codoscope.git
-../env/bin/pip install
 cd py-tree-sitter-languages/
 ../env/bin/pip install Cython tree_sitter==0.20.4 setuptools
 ../env/bin/python build.py
