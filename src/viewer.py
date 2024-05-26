@@ -74,22 +74,23 @@ class CodeViewer(App[None]):
         )
         self.query_one("#body").styles.grid_size_columns = min(visible_panels, 3)
 
+    def watch_show_source(self, show_source: bool) -> None:
+        self.update_visibility("source", show_source)
+
     def watch_show_tokens(self, show_tokens: bool) -> None:
         self.update_visibility("tokens", show_tokens)
 
     def watch_show_ast(self, show_ast: bool) -> None:
         self.update_visibility("ast", show_ast)
 
-    def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
-        if VERSION_3_13:
-            self.update_visibility("opt-ast", show_opt_ast)
+    if VERSION_3_13:
+        def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
+                self.update_visibility("opt-ast", show_opt_ast)
 
-    def watch_show_pseudo_bc(self, show_pseudo_bc: bool) -> None:
-        if VERSION_3_13:
+        def watch_show_pseudo_bc(self, show_pseudo_bc: bool) -> None:
             self.update_visibility("pseudo-bc", show_pseudo_bc)
 
-    def watch_show_opt_pseudo_bc(self, show_opt_pseudo_bc: bool) -> None:
-        if VERSION_3_13:
+        def watch_show_opt_pseudo_bc(self, show_opt_pseudo_bc: bool) -> None:
             self.update_visibility("opt-pseudo-bc", show_opt_pseudo_bc)
 
     def watch_show_code_obj(self, show_code_obj: bool) -> None:
@@ -133,6 +134,9 @@ class CodeViewer(App[None]):
     def on_mount(self) -> None:
         self.set_code(self.startup_code)
         self.query_one(".editor").focus()
+
+    def action_toggle_source(self) -> None:
+        self.show_source = not self.show_source
 
     def action_toggle_tokens(self) -> None:
         self.show_tokens = not self.show_tokens
