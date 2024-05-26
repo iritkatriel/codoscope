@@ -85,8 +85,9 @@ class CodeViewer(App[None]):
         self.update_visibility("ast", show_ast)
 
     if VERSION_3_13:
+
         def watch_show_opt_ast(self, show_opt_ast: bool) -> None:
-                self.update_visibility("opt-ast", show_opt_ast)
+            self.update_visibility("opt-ast", show_opt_ast)
 
         def watch_show_pseudo_bc(self, show_pseudo_bc: bool) -> None:
             self.update_visibility("pseudo-bc", show_pseudo_bc)

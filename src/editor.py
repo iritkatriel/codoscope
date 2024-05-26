@@ -1,8 +1,9 @@
 from textual.app import ComposeResult
+from textual.binding import ActiveBinding
 from textual import events
 from textual.screen import Screen
 from textual.message import Message
-from textual.widgets import TextArea, Static
+from textual.widgets import TextArea, Footer
 
 
 class EditorTextArea(TextArea):
@@ -34,7 +35,7 @@ class EditorScreen(Screen[str | None]):
 
     def compose(self) -> ComposeResult:
         yield EditorTextArea.code_editor(self.code, language="python")
-        yield Static("Use ^s to save changes and close, Esc to cancel")
+        yield Footer()
 
     def set_code(self, new_code: str) -> None:
         self.code = new_code
@@ -54,3 +55,9 @@ class EditorScreen(Screen[str | None]):
         text_area = self.query_one("EditorTextArea", EditorTextArea)
         text_area.text = self.code
         self.dismiss(None)
+
+    @property
+    def active_bindings(self) -> dict[str, ActiveBinding]:
+        result = super().active_bindings
+        # Ignore keybindings from parent screens
+        return {k: v for k, v in result.items() if v.node is self}
