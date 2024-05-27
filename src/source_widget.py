@@ -14,14 +14,9 @@ class SourceWidget(Container):
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(classes="scroller"):
-            # To use an editor
-            # yield TextArea.code_editor("", language="python", classes="editor")
             yield Static(classes="editor", expand=True)
 
     def set_code(self, code: str) -> None:
-        # To use an editor
-        # source = self.query_one(".editor", TextArea)
-        # source.text = code
         source = self.query_one(".editor", Static)
         self._prerendered = Syntax(
             code,
