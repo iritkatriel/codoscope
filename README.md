@@ -2,7 +2,6 @@
 
 Visualize the python compile pipeline
 
-Based in https://github.com/iritkatriel/codoscope/tree/main
 
 ## Install
 
@@ -10,7 +9,7 @@ This requires:
 
 * CPython 3.13 (tested with 3.13.0b1)
 * dependencies in requirements.txt
-  * You will have to manually install `tree-sitter-languages` manually to have syntax
+  * You will have to manually install `tree-sitter-languages` to have syntax
     highlighting. See step-by-step instructions below
 
 The code uses internal, undocumented CPython APIs. It is very likely to break in future

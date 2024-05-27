@@ -18,7 +18,7 @@ if VERSION_3_13:
 else:
 
     def _fail(*args: Any, **kwargs: Any) -> Any:
-        raise Exception("This function should never been have called")
+        raise Exception("This function should never have been called")
 
     compiler_codegen = optimize_cfg = assemble_code_object = _fail
 
