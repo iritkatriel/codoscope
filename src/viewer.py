@@ -55,12 +55,12 @@ class CodeViewer(App[None]):
         ]
 
     show_source = var(True)
-    show_tokens = var(True)
+    show_tokens = var(False)
     show_ast = var(False)
     show_opt_ast = var(False)
     show_pseudo_bc = var(False)
     show_opt_pseudo_bc = var(False)
-    show_code_obj = var(False)
+    show_code_obj = var(True)
 
     def update_visibility(self, id: str, visible: bool) -> None:
         self.query_one(f"#{id}").parent.styles.display = "block" if visible else "none"
