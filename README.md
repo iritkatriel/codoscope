@@ -26,6 +26,8 @@ I was able to get everything up by running the following commands:
 
 ```sh
 python3.13 -m venv env
+# or with uv
+uv venv env --python 3.13 --seed
 git clone https://github.com/grantjenks/py-tree-sitter-languages.git
 git clone https://github.com/iritkatriel/codoscope.git
 cd py-tree-sitter-languages/
@@ -44,7 +46,16 @@ env/bin/python codoscope/src/main.py
 
 Will start the application. You can press `e` to edit the code, and `CTRL+S` to go back
 to the inspector. You can enable different code views in the inspectors with the numbers
-from `1` to `7`. You can quit with `q`
+from `1` to `7`. You can quit with `q`.
+
+The supported code views are:
+1. Source
+2. Tokens
+3. AST
+4. Optimized AST
+5. Pseudo bytecode
+6. Optimized Pseudo bytecode
+7. Assembled Bytecode
 
 You can pre-load source from a file by running:
 
@@ -63,3 +74,5 @@ For showing the code of a python module you can run:
 ```sh
 env/bin/python codoscope/src/main.py -m package.module
 ```
+
+Once you run it, you can inspect parts of the source code and the corresponding code views by hovering over them. 
