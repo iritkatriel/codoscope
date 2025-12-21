@@ -59,9 +59,7 @@ if VERSION_3_13:
 
 
 def _complete_metadata(metadata, filename="myfile.py"):
-    """Complete metadata
-
-    Taken from: https://github.com/python/cpython/blob/5989095dfd08735525f2b615066bc3c231b09388/Lib/test/test_compiler_assemble.py#L13
+    Ensure that all fields of the metadata are set, as is done in  https://github.com/python/cpython/blob/5989095dfd08735525f2b615066bc3c231b09388/Lib/test/test_compiler_assemble.py#L13
     """
     if metadata is None:
         metadata = {}

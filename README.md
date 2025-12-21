@@ -55,7 +55,7 @@ The supported code views are:
 4. Optimized AST
 5. Pseudo bytecode
 6. Optimized Pseudo bytecode
-7. Assembled Bytecode
+7. Assembled bytecode
 
 You can pre-load source from a file by running:
 
