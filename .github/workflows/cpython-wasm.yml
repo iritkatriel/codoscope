@@ -121,7 +121,7 @@ jobs:
           # web_example needs SharedArrayBuffer. coi-serviceworker installs
           # those headers client-side (costs one automatic reload).
           curl -fsSL -o coi-serviceworker.js \
-            https://cdn.jsdelivr.net/gh/gzuidhof/coi-serviceworker@v0.1.7/coi-serviceworker.min.js
+            https://cdn.jsdelivr.net/gh/gzuidhof/coi-serviceworker@7b1d2a092d0d2dd2b7270b6f12f13605de26f214/coi-serviceworker.min.js
           python3 - <<'PY'
           from pathlib import Path
           p = Path("index.html")
