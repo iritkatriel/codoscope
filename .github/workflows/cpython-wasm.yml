@@ -98,16 +98,16 @@ jobs:
             ls -la cross-build/wasm32-emscripten/build/python/ || true
             exit 1
           fi
-          mkdir -p ../site
-          cp -a "$src"/. ../site/
+          mkdir -p "$GITHUB_WORKSPACE/_site"
+          cp -a "$src"/. "$GITHUB_WORKSPACE/_site/"
           # server.py is only for local dev; drop it from the public site.
-          rm -f ../site/server.py
+          rm -f "$GITHUB_WORKSPACE/_site/server.py"
 
       - name: "Add Pages bits"
         shell: bash
+        working-directory: _site
         run: |
           set -euo pipefail
-          cd "$GITHUB_WORKSPACE/../site" || cd site
           # Disable Jekyll on GitHub Pages so underscore-prefixed files are served.
           touch .nojekyll
           # For hosts that honor _headers (Cloudflare Pages, Netlify) this is all
@@ -138,9 +138,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: site
-          path: ../site
+          path: _site
           if-no-files-found: error
           retention-days: 7
+          include-hidden-files: true
 
   deploy:
     name: "Publish to gh-pages branch"
