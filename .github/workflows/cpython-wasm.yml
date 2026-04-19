@@ -1,0 +1,170 @@
+name: "Build"
+
+on:
+  workflow_dispatch:
+    inputs:
+      cpython_ref:
+        required: true
+        default: "main"
+        description: "Ref of CPython to build"
+# Maybe rebuild evrery now and again?
+#  schedule:
+#    - cron: ""
+
+permissions: {}
+
+concurrency:
+  group: cpython-wasm
+  cancel-in-progress: false
+
+jobs:
+  get-emscripten-version:
+    name: "Read pinned Emscripten/Node versions from CPython"
+    runs-on: ubuntu-latest
+    outputs:
+      emscripten_version: ${{ steps.versions.outputs.emscripten_version }}
+      node_version: ${{ steps.versions.outputs.node_version }}
+      cpython_ref: ${{ steps.ref.outputs.cpython_ref }}
+    steps:
+      - name: "Resolve cpython ref"
+        id: ref
+        env:
+          REF_INPUT: ${{ inputs.cpython_ref }}
+        run: |
+          ref="${REF_INPUT:-main}"
+          echo "cpython_ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: "Checkout cpython @ ${{ steps.ref.outputs.cpython_ref }}"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: "python/cpython"
+          ref: ${{ steps.ref.outputs.cpython_ref }}
+          persist-credentials: false
+      - name: "Install Python"
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.x"
+      - name: "Read config.toml"
+        id: versions
+        shell: python
+        run: |
+          import os, tomllib
+          from pathlib import Path
+          cfg = tomllib.loads(Path("Platforms/emscripten/config.toml").read_text())
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"emscripten_version={cfg['emscripten-version']}\n")
+              f.write(f"node_version={cfg['node-version']}\n")
+
+  build:
+    name: "Cross-compile CPython to wasm32-emscripten"
+    needs: get-emscripten-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CPYTHON_REF: ${{ needs.get-emscripten-version.outputs.cpython_ref }}
+    steps:
+      - name: "Checkout cpython @ ${{ env.CPYTHON_REF }}"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: "python/cpython"
+          ref: ${{ env.CPYTHON_REF }}
+          persist-credentials: false
+
+      - name: "Install build Python"
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3"
+
+      - name: "Install Node"
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ needs.get-emscripten-version.outputs.node_version }}
+
+      - name: "Install Emscripten SDK ${{ needs.get-emscripten-version.outputs.emscripten_version }}"
+        uses: mymindstorm/setup-emsdk@6ab9eb1bda2574c4ddb79809fc9247783eaf9021 # v14
+        with:
+          version: ${{ needs.get-emscripten-version.outputs.emscripten_version }}
+          actions-cache-folder: emsdk-cache
+
+      - name: "Build"
+        run: python3 Tools/wasm/emscripten build --quiet
+
+      - name: "Stage site"
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="cross-build/wasm32-emscripten/build/python/web_example"
+          if [ ! -d "$src" ]; then
+            echo "Build output missing: $src" >&2
+            ls -la cross-build/wasm32-emscripten/build/python/ || true
+            exit 1
+          fi
+          mkdir -p ../site
+          cp -a "$src"/. ../site/
+          # server.py is only for local dev; drop it from the public site.
+          rm -f ../site/server.py
+
+      - name: "Add Pages bits"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/../site" || cd site
+          # Disable Jekyll on GitHub Pages so underscore-prefixed files are served.
+          touch .nojekyll
+          # For hosts that honor _headers (Cloudflare Pages, Netlify) this is all
+          # you need. GitHub Pages ignores it; the service worker below handles GH.
+          cat > _headers <<'EOF'
+          /*
+            Cross-Origin-Embedder-Policy: require-corp
+            Cross-Origin-Opener-Policy: same-origin
+          EOF
+          # GitHub Pages cannot set COOP/COEP headers, but the Emscripten
+          # web_example needs SharedArrayBuffer. coi-serviceworker installs
+          # those headers client-side (costs one automatic reload).
+          curl -fsSL -o coi-serviceworker.js \
+            https://cdn.jsdelivr.net/gh/gzuidhof/coi-serviceworker@v0.1.7/coi-serviceworker.min.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("index.html")
+          html = p.read_text()
+          tag = '<script src="coi-serviceworker.js"></script>'
+          if tag not in html:
+              html = html.replace("</head>", f"    {tag}\n    </head>", 1)
+              p.write_text(html)
+          PY
+          echo "--- site contents ---"
+          ls -la
+
+      - name: "Upload site artifact"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: site
+          path: ../site
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: "Publish to gh-pages branch"
+    needs: [get-emscripten-version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: true
+
+      - name: "Download site artifact"
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: site
+          path: site
+
+      - name: "Deploy to gh-pages"
+        uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: "Publish CPython WASM build (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
