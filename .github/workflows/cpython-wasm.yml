@@ -61,12 +61,22 @@ jobs:
     timeout-minutes: 120
     env:
       CPYTHON_REF: ${{ needs.get-emscripten-version.outputs.cpython_ref }}
+    defaults:
+      run:
+        working-directory: cpython
     steps:
-      - name: "Checkout cpython @ ${{ env.CPYTHON_REF }}"
+      - name: "Checkout codoscope"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: codoscope
+          persist-credentials: false
+
+      - name: "Checkout cpython@${{ env.CPYTHON_REF }}"
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: "python/cpython"
           ref: ${{ env.CPYTHON_REF }}
+          path: cpython
           persist-credentials: false
 
       - name: "Install build Python"
@@ -89,50 +99,25 @@ jobs:
         run: python3 Tools/wasm/emscripten build --quiet
 
       - name: "Stage site"
-        shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
-          set -euo pipefail
-          src="cross-build/wasm32-emscripten/build/python/web_example"
-          if [ ! -d "$src" ]; then
-            echo "Build output missing: $src" >&2
-            ls -la cross-build/wasm32-emscripten/build/python/ || true
-            exit 1
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/_site"
-          cp -a "$src"/. "$GITHUB_WORKSPACE/_site/"
-          # server.py is only for local dev; drop it from the public site.
-          rm -f "$GITHUB_WORKSPACE/_site/server.py"
+          mkdir _site
+          cp -a cpython/cross-build/wasm32-emscripten/build/python/web_example/. _site/
+          rm _site/server.py
+          cp codoscope/web/index.html _site/index.html
+          cp codoscope/web/driver.py  _site/driver.py
 
       - name: "Add Pages bits"
         shell: bash
-        working-directory: _site
+        working-directory: ${{ github.workspace }}/_site
         run: |
           set -euo pipefail
-          # Disable Jekyll on GitHub Pages so underscore-prefixed files are served.
-          touch .nojekyll
-          # For hosts that honor _headers (Cloudflare Pages, Netlify) this is all
-          # you need. GitHub Pages ignores it; the service worker below handles GH.
-          cat > _headers <<'EOF'
-          /*
-            Cross-Origin-Embedder-Policy: require-corp
-            Cross-Origin-Opener-Policy: same-origin
-          EOF
           # GitHub Pages cannot set COOP/COEP headers, but the Emscripten
-          # web_example needs SharedArrayBuffer. coi-serviceworker installs
-          # those headers client-side (costs one automatic reload).
+          # thingy needs SharedArrayBuffer. coi-serviceworker installs
+          # those headers client-side (which costs us one automatic reload).
+          # The <script src="coi-serviceworker.js"> tag lives in web/index.html.
           curl -fsSL -o coi-serviceworker.js \
             https://cdn.jsdelivr.net/gh/gzuidhof/coi-serviceworker@7b1d2a092d0d2dd2b7270b6f12f13605de26f214/coi-serviceworker.min.js
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("index.html")
-          html = p.read_text()
-          tag = '<script src="coi-serviceworker.js"></script>'
-          if tag not in html:
-              html = html.replace("</head>", f"    {tag}\n    </head>", 1)
-              p.write_text(html)
-          PY
-          echo "--- site contents ---"
-          ls -la
 
       - name: "Upload site artifact"
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

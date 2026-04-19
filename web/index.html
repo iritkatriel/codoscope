@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="Visualize the Python compiler pipeline in your browser via CPython on WebAssembly">
+        <title>codoscope</title>
+        <style>
+            :root {
+                --bg: #0e1217;
+                --panel: #161a21;
+                --panel-border: #242a33;
+                --text: #d7d7d7;
+                --muted: #8a93a0;
+                --accent: #6cb6ff;
+                --error: #ff6b6b;
+            }
+            * { box-sizing: border-box; }
+            html, body {
+                margin: 0;
+                padding: 0;
+                background: var(--bg);
+                color: var(--text);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+                font-size: 14px;
+                min-height: 100vh;
+            }
+            header.topbar {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 16px;
+                border-bottom: 1px solid var(--panel-border);
+                background: var(--panel);
+                flex-wrap: wrap;
+            }
+            header.topbar h1 {
+                font-size: 14px;
+                font-weight: normal;
+                color: var(--muted);
+                margin: 0;
+            }
+            header.topbar h1 strong {
+                color: var(--text);
+                font-weight: 600;
+            }
+            header.topbar .spacer { flex: 1; }
+            button {
+                background: #232a35;
+                color: var(--text);
+                border: 1px solid var(--panel-border);
+                padding: 5px 14px;
+                border-radius: 4px;
+                cursor: pointer;
+                font: inherit;
+            }
+            button:hover:not(:disabled) { background: #2c3440; }
+            button:disabled { opacity: 0.5; cursor: wait; }
+            #run {
+                background: #2ea043;
+                border-color: #238636;
+                color: #fff;
+                font-weight: 600;
+            }
+            #run:hover:not(:disabled) { background: #3fb950; }
+            .toggles {
+                display: flex;
+                gap: 14px;
+                flex-wrap: wrap;
+            }
+            .toggles label {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                cursor: pointer;
+                color: var(--muted);
+                user-select: none;
+            }
+            .toggles input { accent-color: var(--accent); }
+            .toggles input:checked + span { color: var(--text); }
+            main {
+                padding: 14px;
+                display: grid;
+                gap: 14px;
+                grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+                grid-auto-rows: minmax(320px, 1fr);
+            }
+            .panel {
+                display: flex;
+                flex-direction: column;
+                background: var(--panel);
+                border: 1px solid var(--panel-border);
+                border-radius: 6px;
+                overflow: hidden;
+                min-height: 320px;
+            }
+            .panel.hidden { display: none; }
+            .panel > h2 {
+                margin: 0;
+                padding: 8px 12px;
+                font-size: 12px;
+                font-weight: 600;
+                text-align: center;
+                color: #f0f4f8;
+                background: #1b212a;
+                border-bottom: 1px solid var(--panel-border);
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+            .panel > .content {
+                flex: 1;
+                overflow: auto;
+                padding: 10px 12px;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 12px;
+                line-height: 1.45;
+                white-space: pre;
+            }
+            #editor {
+                flex: 1;
+                min-height: 0;
+            }
+            .ace_editor { font-size: 12px !important; }
+            .banner {
+                padding: 8px 16px;
+                color: var(--error);
+                background: #2a1414;
+                border-bottom: 1px solid #3a2020;
+                display: none;
+            }
+            .banner.shown { display: block; }
+            .status {
+                color: var(--muted);
+                font-size: 12px;
+            }
+        </style>
+        <script src="coi-serviceworker.js"></script>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.43.1/ace.js"
+            crossorigin
+            integrity="sha512-kmA5vhcxOkZI0ReiKJMGNb8/KKbgbExIlnt6aXuPtl86AgHBEi6OHHOz2wsTazBDGZKxe7fmiE+pIuZJQks4+A=="
+        ></script>
+    </head>
+    <body>
+        <header class="topbar">
+            <h1><strong>codoscope</strong> — <span id="pyver">loading CPython…</span></h1>
+            <span class="status" id="status"></span>
+            <span class="spacer"></span>
+            <button id="run" disabled>Run</button>
+            <div class="toggles" id="toggles">
+                <label><input type="checkbox" data-view="source"     checked><span>Source</span></label>
+                <label><input type="checkbox" data-view="tokens"     checked><span>Tokens</span></label>
+                <label><input type="checkbox" data-view="ast"        checked><span>AST</span></label>
+                <label><input type="checkbox" data-view="ast-opt"    checked><span>Optimized AST</span></label>
+                <label><input type="checkbox" data-view="pseudo"     checked><span>Pseudo Bytecode</span></label>
+                <label><input type="checkbox" data-view="pseudo-opt" checked><span>Optimized Pseudo Bytecode</span></label>
+                <label><input type="checkbox" data-view="compiled"   checked><span>Code Object</span></label>
+            </div>
+        </header>
+        <div class="banner" id="buffererror">
+            <code>SharedArrayBuffer</code> is not available yet. The page will reload
+            automatically once the cross-origin-isolation service worker installs.
+        </div>
+        <main id="grid">
+            <section class="panel" data-view="source">
+                <h2>Source</h2>
+                <div id="editor">def f(x):
+    return x * 2 + 10 + 1
+
+print(f(42))</div>
+            </section>
+            <section class="panel" data-view="tokens">
+                <h2>Tokens</h2><pre class="content"></pre>
+            </section>
+            <section class="panel" data-view="ast">
+                <h2>AST</h2><pre class="content"></pre>
+            </section>
+            <section class="panel" data-view="ast-opt">
+                <h2>Optimized AST</h2><pre class="content"></pre>
+            </section>
+            <section class="panel" data-view="pseudo">
+                <h2>Pseudo Bytecode</h2><pre class="content"></pre>
+            </section>
+            <section class="panel" data-view="pseudo-opt">
+                <h2>Optimized Pseudo Bytecode</h2><pre class="content"></pre>
+            </section>
+            <section class="panel" data-view="compiled">
+                <h2>Code Object</h2><pre class="content"></pre>
+            </section>
+        </main>
+        <script type="module">
+            const runBtn   = document.getElementById("run");
+            const status   = document.getElementById("status");
+            const pyver    = document.getElementById("pyver");
+            const panels   = Array.from(document.querySelectorAll(".panel"));
+            const toggles  = Array.from(document.querySelectorAll("#toggles input"));
+
+            const VIEWS = ["tokens", "ast", "ast-opt", "pseudo", "pseudo-opt", "compiled"];
+
+            let driverSource = null;
+
+            const applyToggles = () => {
+                for (const box of toggles) {
+                    const view = box.dataset.view;
+                    const panel = document.querySelector(`.panel[data-view="${view}"]`);
+                    if (panel) panel.classList.toggle("hidden", !box.checked);
+                }
+            };
+
+            const setPanelContent = (view, text) => {
+                document.querySelector(`.panel[data-view="${view}"] .content`).textContent = text;
+            };
+
+            const clearAllPanels = (placeholder) => {
+                for (const v of VIEWS) setPanelContent(v, placeholder);
+            };
+
+            const run = () => {
+                runBtn.disabled = true;
+                status.textContent = "compiling…";
+                clearAllPanels("…");
+
+                const stdout = [];
+                const worker = new Worker("./python.worker.mjs", { type: "module" });
+                worker.onmessage = (e) => {
+                    const d = e.data;
+                    if (d.type === "stdout") {
+                        stdout.push(d.stdout);
+                    } else if (d.type === "finished") {
+                        worker.terminate();
+                        const result = JSON.parse(String.fromCharCode(...stdout));
+                        pyver.textContent = `CPython ${result.python_version} (WASM)`;
+                        for (const v of VIEWS) setPanelContent(v, result[v]);
+                        status.textContent = "";
+                        runBtn.disabled = false;
+                    }
+                };
+
+                worker.postMessage({
+                    type: "run",
+                    args: ["driver.py"],
+                    files: {
+                        "driver.py": driverSource,
+                        "user.py":   window.editor.getValue(),
+                    },
+                });
+            };
+
+            for (const box of toggles) {
+                box.addEventListener("change", applyToggles);
+            }
+            applyToggles();
+
+            runBtn.addEventListener("click", run);
+
+            window.addEventListener("load", async () => {
+                driverSource = await fetch("driver.py").then((r) => r.text());
+                runBtn.disabled = false;
+                run();
+            });
+
+            if (typeof SharedArrayBuffer === "undefined") {
+                document.getElementById("buffererror").classList.add("shown");
+            }
+        </script>
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {
+                window.editor = ace.edit("editor");
+                window.editor.session.setMode("ace/mode/python");
+                window.editor.setTheme("ace/theme/tomorrow_night");
+                window.editor.setOption("fontSize", "12px");
+                window.editor.renderer.setShowGutter(true);
+            });
+        </script>
+    </body>
+</html>
