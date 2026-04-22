@@ -1,0 +1,4 @@
+-r requirements.txt
+# Optional Textual syntax highlighting extra. tree-sitter-languages currently
+# does not publish wheels for Python 3.13.
+textual[syntax] ; python_version < "3.13"

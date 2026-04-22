@@ -9,8 +9,9 @@ This requires:
 
 * CPython 3.13 (tested with 3.13.0b1)
 * dependencies in requirements.txt
-  * You will have to manually install `tree-sitter-languages` to have syntax
-    highlighting. See step-by-step instructions below
+* optional syntax highlighting for Textual mode:
+  * install `requirements-textual.txt`
+  * `tree-sitter-languages` support is currently unavailable on Python 3.13
 
 The code uses internal, undocumented CPython APIs. It is very likely to break in future
 CPython versions. When it does you get to keep both pieces.
@@ -36,6 +37,8 @@ cd py-tree-sitter-languages/
 ../env/bin/python setup.py install
 cd ../codoscope
 ../env/bin/pip install -r requirements.txt
+# Optional Textual syntax highlighting extras (Py<3.13):
+../env/bin/pip install -r requirements-textual.txt
 ```
 
 ## Usage
