@@ -76,3 +76,19 @@ env/bin/python codoscope/src/main.py -m package.module
 ```
 
 Once you run it, you can inspect parts of the source code and the corresponding code views by hovering over them. 
+
+## Running tests
+
+Run the unit tests with:
+
+```sh
+make test
+```
+
+If you want to use a different Python interpreter:
+
+```sh
+make test PYTHON=python3.12
+```
+
+CI runs the same command (`make test`) on pushes and pull requests using Python 3.13.
