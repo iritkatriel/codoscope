@@ -120,18 +120,50 @@ def _placeholder_consts(items):
     return [_ConstPlaceholder(i) for i in range(_max_const_arg(items) + 1)]
 
 
+def _co_consts_from_metadata(metadata):
+    if not metadata:
+        return None
+    consts = metadata.get("consts")
+    if not isinstance(consts, dict) or not consts:
+        return None
+    # compiler metadata stores const->index; disassembly expects a dense list.
+    return [value for _idx, value in sorted((idx, value) for value, idx in consts.items())]
+
+
+def _fit_co_consts(items, co_consts):
+    max_arg = _max_const_arg(items)
+    if max_arg < 0:
+        return co_consts
+    if len(co_consts) > max_arg:
+        return co_consts
+    fitted = list(co_consts)
+    fitted.extend(_ConstPlaceholder(i) for i in range(len(fitted), max_arg + 1))
+    return fitted
+
+
+def _compiled_co_consts(code: str):
+    # Fallback source for const values when compiler metadata omits "consts".
+    return list(compile(code, "<source>", "exec", optimize=1).co_consts)
+
+
+def _instruction_items(insts):
+    if hasattr(insts, "get_instructions"):
+        return list(insts.get_instructions())
+    return list(insts)
+
+
 def view_pseudo(code: str, *, optimize: bool = False) -> str:
-    # CPython main's compiler_codegen() no longer puts "consts" in the metadata
-    # dict, and there is no Python-visible API to read them off the instruction
-    # sequence. Use opaque placeholders sized to the largest LOAD_CONST arg so
-    # the optimizer and dis.ArgResolver don't crash; const args render as
-    # <const#N> rather than their real values.
-    insts, _metadata = compiler_codegen(ast.parse(code, optimize=1), "<source>", 0)
-    if optimize:
-        placeholders = _placeholder_consts(list(insts.get_instructions()))
-        insts = optimize_cfg(insts, placeholders, 0)
-    items = list(insts.get_instructions())
-    return _disassemble(items, _placeholder_consts(items))
+    insts, metadata = compiler_codegen(ast.parse(code, optimize=1), "<source>", 0)
+    co_consts = _co_consts_from_metadata(metadata)
+    if co_consts is None:
+        co_consts = _compiled_co_consts(code)
+    # On some newer WASM builds (e.g. CPython 3.15 snapshots), optimize_cfg can
+    # trap at runtime with low-level wasm errors. Prefer a stable pseudo view
+    # there instead of crashing the whole worker process.
+    if optimize and sys.version_info < (3, 15):
+        insts = optimize_cfg(insts, co_consts, 0)
+    items = _instruction_items(insts)
+    return _disassemble(items, _fit_co_consts(items, co_consts))
 
 
 def view_compiled(code: str) -> str:
