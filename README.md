@@ -63,3 +63,19 @@ For showing the code of a python module you can run:
 ```sh
 env/bin/python codoscope/src/main.py -m package.module
 ```
+
+## Running tests
+
+Run the unit tests with:
+
+```sh
+make test
+```
+
+If you want to use a different Python interpreter:
+
+```sh
+make test PYTHON=python3.12
+```
+
+CI runs the same command (`make test`) on pushes and pull requests using Python 3.13.
