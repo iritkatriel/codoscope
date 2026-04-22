@@ -7,7 +7,6 @@ from textual.widgets import TextArea, Footer
 
 
 class EditorTextArea(TextArea):
-
     class Cancel(Message):
         pass
 

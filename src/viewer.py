@@ -1,18 +1,18 @@
 import sys
-from typing import Iterable, cast
+from typing import Iterable
 
+from textual import log, widget
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical
-from textual import log, widget
 from textual.reactive import var
-from textual.widgets import Header, Footer, Static
+from textual.widgets import Footer, Header, Static
 
-from bytecode_widget import BytecodeWidget
-from events import HoverLine
 from ast_widget import ASTWidget
-from token_widget import TokenWidget
-from source_widget import SourceWidget
+from bytecode_widget import BytecodeWidget
 from editor import EditorScreen
+from events import HoverLine
+from source_widget import SourceWidget
+from token_widget import TokenWidget
 
 # This controls 3.13 features
 VERSION_3_13 = sys.version_info >= (3, 13)
@@ -25,12 +25,10 @@ def widget_with_title(w: widget.Widget, title: str) -> Iterable[widget.Widget]:
 
 
 class CodeViewer(App[None]):
-
     TITLE = "Compiler Pipeline Explorer"
     CSS_PATH = "viewer.tcss"
-    SCREENS = {"editor": EditorScreen()}
 
-    startup_code: str = ""
+    code: str = ""
 
     if VERSION_3_13:
         BINDINGS = [
@@ -122,7 +120,7 @@ class CodeViewer(App[None]):
         yield Footer()
 
     def set_code(self, code: str) -> None:
-        cast(EditorScreen, self.SCREENS["editor"]).set_code(code)
+        self.code = code
         source = self.query_one("#source", SourceWidget)
         source.set_code(code)
         self.query_one("#tokens", TokenWidget).set_code(code)
@@ -134,7 +132,7 @@ class CodeViewer(App[None]):
         self.query_one("#opt-code-obj", BytecodeWidget).set_code(code)
 
     def on_mount(self) -> None:
-        self.set_code(self.startup_code)
+        self.set_code(self.code)
         self.query_one(".editor").focus()
 
     def action_toggle_source(self) -> None:
@@ -163,7 +161,9 @@ class CodeViewer(App[None]):
             if code is not None:
                 self.set_code(code)
 
-        self.push_screen("editor", update_code)
+        screen = EditorScreen()
+        screen.set_code(self.code)
+        self.push_screen(screen, update_code)
 
     def on_hover_line(self, message: HoverLine) -> None:
         log(f"hover: {message.lineno}")
@@ -186,7 +186,7 @@ class CodeViewer(App[None]):
 
 if __name__ == "__main__":
     app = CodeViewer()
-    app.startup_code = """
+    app.code = """
 "Fibonacci Demo"
 
 a, b = 0, 1

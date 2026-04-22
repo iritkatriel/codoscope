@@ -58,6 +58,24 @@ if VERSION_3_13:
             super().print_instruction(instr, mark_as_current=mark_as_current)
 
 
+def _complete_metadata(metadata, filename="myfile.py"):
+    """Ensure that all fields of the metadata are set, as is done in
+    https://github.com/python/cpython/blob/5989095dfd08735525f2b615066bc3c231b09388/Lib/test/test_compiler_assemble.py#L13"""
+    if metadata is None:
+        metadata = {}
+    for key in ["name", "qualname"]:
+        metadata.setdefault(key, key)
+    for key in ["consts"]:
+        metadata.setdefault(key, [])
+    for key in ["names", "varnames", "cellvars", "freevars", "fasthidden"]:
+        metadata.setdefault(key, {})
+    for key in ["argcount", "posonlyargcount", "kwonlyargcount"]:
+        metadata.setdefault(key, 0)
+    metadata.setdefault("firstlineno", 1)
+    metadata.setdefault("filename", filename)
+    return metadata
+
+
 def _get_instructions(
     insts: Iterable[PseudoInstruction | dis.Instruction],
     arg_resolver: PseudoInstrsArgResolver,
@@ -126,7 +144,6 @@ def _disassemble(
 
 
 class BytecodeWidget(BaseWidget):
-
     mode: BytecodeMode
 
     def __init__(self, *args: Any, mode: BytecodeMode, **kwargs: Any) -> None:
@@ -151,11 +168,8 @@ class BytecodeWidget(BaseWidget):
                 insts = optimize_cfg(insts, co_consts, nlocals)
 
             if self.mode == "compiled":
-                # Assemble
                 metadata["consts"] = {name: i for i, name in enumerate(co_consts)}
-                from test.test_compiler_assemble import IsolatedAssembleTests
-
-                IsolatedAssembleTests().complete_metadata(metadata)
+                metadata = _complete_metadata(metadata)
                 co = assemble_code_object(filename, insts, metadata)
                 bytecode = dis.Bytecode(co)
                 output = list(bytecode)
