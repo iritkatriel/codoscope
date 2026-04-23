@@ -150,12 +150,12 @@ def _merge_co_consts(metadata_consts, compiled_consts):
 def _fit_co_consts(items, co_consts):
     max_arg = _max_const_arg(items)
     if max_arg < 0:
-        return co_consts
+        return [None if isinstance(v, _ConstPlaceholder) else v for v in co_consts]
     if len(co_consts) > max_arg:
-        return co_consts
+        return [None if isinstance(v, _ConstPlaceholder) else v for v in co_consts]
     fitted = list(co_consts)
-    fitted.extend(_ConstPlaceholder(i) for i in range(len(fitted), max_arg + 1))
-    return fitted
+    fitted.extend(None for _ in range(len(fitted), max_arg + 1))
+    return [None if isinstance(v, _ConstPlaceholder) else v for v in fitted]
 
 
 def _compiled_co_consts(code: str):
