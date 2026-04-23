@@ -20,11 +20,10 @@ on:
       deploy_channel:
         required: true
         default: "stable"
-        description: "Where to publish the site"
+        description: "Where to publish the site (manual runs)"
         type: choice
         options:
           - stable
-          - dev
 # Maybe rebuild evrery now and again?
 #  schedule:
 #    - cron: ""
@@ -61,18 +60,14 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if [ "$EVENT_NAME" = "push" ]; then
-            channel="dev"
-            destination="dev"
+            channel="stable"
+            destination=""
           elif [ "$EVENT_NAME" = "pull_request" ]; then
             channel="preview"
             destination="pr-${PR_NUMBER}"
           else
             channel="${CHANNEL_INPUT:-stable}"
-            if [ "$channel" = "dev" ]; then
-              destination="dev"
-            else
-              destination=""
-            fi
+            destination=""
           fi
           echo "deploy_channel=$channel" >> "$GITHUB_OUTPUT"
           echo "deploy_destination=$destination" >> "$GITHUB_OUTPUT"
@@ -197,18 +192,6 @@ jobs:
           name: site
           path: site
 
-      - name: "Deploy dev site to gh-pages/dev"
-        if: env.DEPLOY_CHANNEL == 'dev'
-        uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
-          publish_branch: gh-pages
-          destination_dir: dev
-          keep_files: true
-          force_orphan: false
-          commit_message: "Publish dev CPython WASM build (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
-
       - name: "Deploy PR preview site"
         if: env.DEPLOY_CHANNEL == 'preview'
         uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
@@ -230,7 +213,7 @@ jobs:
           publish_branch: gh-pages
           keep_files: true
           force_orphan: false
-          commit_message: "Publish stable CPython WASM build (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
+          commit_message: "Publish site from main (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
 
       - name: "Comment PR preview URL"
         if: env.DEPLOY_CHANNEL == 'preview'
