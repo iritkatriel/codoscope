@@ -36,7 +36,12 @@ class BytecodeHelpersTests(unittest.TestCase):
         self.assertGreater(len(result), 0)
         rendered_lines = [line for line, _, _ in result]
         self.assertTrue(any("LOAD_CONST" in line for line in rendered_lines))
-        self.assertTrue(all(isinstance(start, int) and isinstance(end, int) for _, start, end in result))
+        self.assertTrue(
+            all(
+                isinstance(start, int) and isinstance(end, int)
+                for _, start, end in result
+            )
+        )
 
 
 if __name__ == "__main__":

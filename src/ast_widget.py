@@ -34,7 +34,7 @@ def dump_iter(node: ast.AST) -> Iterable[Detail]:
     def _format(
         node: Any, level: int = 0, last_line: int = 0, prepend: str = ""
     ) -> Iterable[Detail]:
-        prefix = f"{indent*level}{prepend}"
+        prefix = f"{indent * level}{prepend}"
         match node:
             case ast.AST(_fields=fields):
                 start = getattr(node, "lineno", last_line)
@@ -48,7 +48,11 @@ def dump_iter(node: ast.AST) -> Iterable[Detail]:
 
                 if not _has_children(node):
                     args = (f"{name}={_attr_repr(node, name)}" for name in fields)
-                    yield f"{prefix}{node.__class__.__name__}({', '.join(args)})", start, end
+                    yield (
+                        f"{prefix}{node.__class__.__name__}({', '.join(args)})",
+                        start,
+                        end,
+                    )
                 else:
                     yield f"{prefix}{node.__class__.__name__}()", start, end
                     for name in fields:
@@ -72,7 +76,6 @@ def dump_iter(node: ast.AST) -> Iterable[Detail]:
 
 
 class ASTWidget(BaseWidget):
-
     optimized: bool
 
     def __init__(self, *args: Any, optimized: bool = False, **kwargs: Any) -> None:

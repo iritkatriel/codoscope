@@ -7,7 +7,6 @@ from base_widget import BaseWidget, Detail
 
 
 class TokenWidget(BaseWidget):
-
     def format_token(self, token: tokenize.TokenInfo, current_line: int) -> Detail:
         line = token.start[0]
         end_line = token.end[0]

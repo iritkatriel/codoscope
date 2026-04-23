@@ -196,7 +196,9 @@ def _apply_annotations_const_workaround(items, co_consts):
             adjusted = list(co_consts)
             insert_at = const_arg
             if insert_at > len(adjusted):
-                adjusted.extend(_ConstPlaceholder(k) for k in range(len(adjusted), insert_at))
+                adjusted.extend(
+                    _ConstPlaceholder(k) for k in range(len(adjusted), insert_at)
+                )
             adjusted.insert(insert_at, _InternalConstPlaceholder())
             return adjusted
         break
@@ -216,7 +218,9 @@ def _instruction_items(insts):
 
 def view_pseudo(code: str, *, optimize: bool = False) -> str:
     insts, metadata = compiler_codegen(ast.parse(code, optimize=1), "<source>", 0)
-    co_consts = _merge_co_consts(_co_consts_from_metadata(metadata), _compiled_co_consts(code))
+    co_consts = _merge_co_consts(
+        _co_consts_from_metadata(metadata), _compiled_co_consts(code)
+    )
     # On some newer WASM builds (e.g. CPython 3.15 snapshots), optimize_cfg can
     # trap at runtime with low-level wasm errors. Prefer a stable pseudo view
     # there instead of crashing the whole worker process.

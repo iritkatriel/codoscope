@@ -11,7 +11,6 @@ from events import HoverLine
 
 
 class SourceWidget(Container):
-
     def compose(self) -> ComposeResult:
         with VerticalScroll(classes="scroller"):
             yield Static(classes="editor", expand=True)

@@ -4,6 +4,8 @@ import types
 from unittest import mock
 import unittest
 
+import main as main_module
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -11,8 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 fake_viewer_module = types.ModuleType("viewer")
 fake_viewer_module.CodeViewer = mock.Mock
 sys.modules["viewer"] = fake_viewer_module
-
-import main as main_module
 
 
 class MainTests(unittest.TestCase):
@@ -27,13 +27,17 @@ class MainTests(unittest.TestCase):
 
     def test_main_rejects_ambiguous_inputs(self) -> None:
         with self.assertRaises(SystemExit):
-            with mock.patch.object(sys, "argv", ["codoscope", "-c", "x = 1", "-m", "json"]):
+            with mock.patch.object(
+                sys, "argv", ["codoscope", "-c", "x = 1", "-m", "json"]
+            ):
                 main_module.main(["codoscope", "-c", "x = 1", "-m", "json"])
 
     def test_main_loads_file_contents(self) -> None:
         fake_app = mock.Mock()
         with mock.patch.object(main_module, "CodeViewer", return_value=fake_app):
-            with mock.patch.object(main_module.Path, "read_text", return_value="print('ok')") as read_text:
+            with mock.patch.object(
+                main_module.Path, "read_text", return_value="print('ok')"
+            ) as read_text:
                 with mock.patch.object(sys, "argv", ["codoscope", "sample.py"]):
                     main_module.main(["codoscope", "sample.py"])
 
@@ -45,9 +49,15 @@ class MainTests(unittest.TestCase):
         fake_app = mock.Mock()
         fake_module = mock.Mock(__file__="/tmp/fake_module.py")
         with mock.patch.object(main_module, "CodeViewer", return_value=fake_app):
-            with mock.patch.object(main_module.importlib, "import_module", return_value=fake_module):
-                with mock.patch.object(main_module.Path, "read_text", return_value="value = 42"):
-                    with mock.patch.object(sys, "argv", ["codoscope", "-m", "fake.module"]):
+            with mock.patch.object(
+                main_module.importlib, "import_module", return_value=fake_module
+            ):
+                with mock.patch.object(
+                    main_module.Path, "read_text", return_value="value = 42"
+                ):
+                    with mock.patch.object(
+                        sys, "argv", ["codoscope", "-m", "fake.module"]
+                    ):
                         main_module.main(["codoscope", "-m", "fake.module"])
 
         self.assertEqual(fake_app.startup_code, "value = 42")
