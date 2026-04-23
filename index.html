@@ -212,6 +212,13 @@ print(f(42))</div>
                 document.querySelector(`.panel[data-view="${view}"] .content`).textContent = text;
             };
 
+            const showError = (text) => {
+                const short = String(text).split("\n")[0];
+                status.textContent = `error: ${short}`;
+                pyver.textContent = "failed to start CPython (WASM)";
+                for (const v of VIEWS) setPanelContent(v, String(text));
+            };
+
             const clearAllPanels = (placeholder) => {
                 for (const v of VIEWS) setPanelContent(v, placeholder);
             };
@@ -222,19 +229,71 @@ print(f(42))</div>
                 clearAllPanels("…");
 
                 const stdout = [];
+                const stderr = [];
+                let finished = false;
                 const worker = new Worker("./python.worker.mjs", { type: "module" });
+                const startedAt = Date.now();
+                const watchdog = setInterval(() => {
+                    if (finished) {
+                        clearInterval(watchdog);
+                        return;
+                    }
+                    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+                    status.textContent = `compiling… (${seconds}s, initializing WASM)`;
+                }, 1000);
                 worker.onmessage = (e) => {
                     const d = e.data;
                     if (d.type === "stdout") {
                         stdout.push(d.stdout);
-                    } else if (d.type === "finished") {
+                    } else if (d.type === "stderr") {
+                        stderr.push(d.stderr);
+                    } else if (d.type === "worker-error") {
+                        finished = true;
+                        clearInterval(watchdog);
                         worker.terminate();
-                        const result = JSON.parse(String.fromCharCode(...stdout));
-                        pyver.textContent = `CPython ${result.python_version} (WASM)`;
-                        for (const v of VIEWS) setPanelContent(v, result[v]);
-                        status.textContent = "";
+                        showError(`Worker initialization failed: ${d.error || "unknown error"}`);
+                        runBtn.disabled = false;
+                    } else if (d.type === "ready") {
+                        status.textContent = "runtime ready, running…";
+                    } else if (d.type === "finished") {
+                        finished = true;
+                        clearInterval(watchdog);
+                        worker.terminate();
+                        try {
+                            const result = JSON.parse(String.fromCharCode(...stdout));
+                            pyver.textContent = `CPython ${result.python_version} (WASM)`;
+                            for (const v of VIEWS) setPanelContent(v, result[v] ?? "");
+                            status.textContent = "";
+                        } catch (err) {
+                            const errText = [
+                                "Failed to parse worker output.",
+                                "",
+                                `Error: ${String(err)}`,
+                                "",
+                                "stderr:",
+                                String.fromCharCode(...stderr),
+                                "",
+                                "stdout:",
+                                String.fromCharCode(...stdout),
+                            ].join("\n");
+                            showError(errText);
+                        }
                         runBtn.disabled = false;
                     }
+                };
+                worker.onerror = (e) => {
+                    finished = true;
+                    clearInterval(watchdog);
+                    const errText = `Worker error: ${e.message || "unknown error"}`;
+                    showError(errText);
+                    runBtn.disabled = false;
+                };
+                worker.onmessageerror = () => {
+                    finished = true;
+                    clearInterval(watchdog);
+                    const errText = "Worker message decoding error";
+                    showError(errText);
+                    runBtn.disabled = false;
                 };
 
                 worker.postMessage({
@@ -255,7 +314,13 @@ print(f(42))</div>
             runBtn.addEventListener("click", run);
 
             window.addEventListener("load", async () => {
-                driverSource = await fetch("driver.py").then((r) => r.text());
+                try {
+                    driverSource = await fetch("driver.py", { cache: "no-store" }).then((r) => r.text());
+                } catch (err) {
+                    const errText = `Failed to load driver.py: ${String(err)}`;
+                    showError(errText);
+                    return;
+                }
                 runBtn.disabled = false;
                 run();
             });
