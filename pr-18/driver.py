@@ -104,6 +104,11 @@ class _ConstPlaceholder:
         return f"<const#{self.idx}>"
 
 
+class _InternalConstPlaceholder:
+    def __repr__(self):
+        return "<internal const>"
+
+
 def _max_const_arg(items):
     max_arg = -1
     for inst in items:
@@ -158,6 +163,46 @@ def _fit_co_consts(items, co_consts):
     return fitted
 
 
+def _is_annotations_placeholder(inst) -> bool:
+    if isinstance(inst, dis.Instruction):
+        return inst.opname == "ANNOTATIONS_PLACEHOLDER"
+    return dis._all_opname[inst[0]] == "ANNOTATIONS_PLACEHOLDER"
+
+
+def _load_const_arg(inst):
+    if isinstance(inst, dis.Instruction):
+        if inst.opcode in dis.hasconst:
+            return inst.arg
+        return None
+    op, arg = inst[0], inst[1]
+    if op in dis.hasconst:
+        return arg
+    return None
+
+
+def _apply_annotations_const_workaround(items, co_consts):
+    """3.15+ pseudo code may use an internal const slot for annotations.
+
+    Insert an explicit placeholder for that internal slot so subsequent
+    LOAD_CONST values align with user-visible constants.
+    """
+    for i, inst in enumerate(items):
+        if not _is_annotations_placeholder(inst):
+            continue
+        for nxt in items[i + 1 :]:
+            const_arg = _load_const_arg(nxt)
+            if const_arg is None:
+                continue
+            adjusted = list(co_consts)
+            insert_at = const_arg
+            if insert_at > len(adjusted):
+                adjusted.extend(_ConstPlaceholder(k) for k in range(len(adjusted), insert_at))
+            adjusted.insert(insert_at, _InternalConstPlaceholder())
+            return adjusted
+        break
+    return co_consts
+
+
 def _compiled_co_consts(code: str):
     # Fallback source for const values when compiler metadata omits "consts".
     return list(compile(code, "<source>", "exec", optimize=1).co_consts)
@@ -178,7 +223,8 @@ def view_pseudo(code: str, *, optimize: bool = False) -> str:
     if optimize and sys.version_info < (3, 15):
         insts = optimize_cfg(insts, co_consts, 0)
     items = _instruction_items(insts)
-    return _disassemble(items, _fit_co_consts(items, co_consts))
+    adjusted_consts = _apply_annotations_const_workaround(items, co_consts)
+    return _disassemble(items, _fit_co_consts(items, adjusted_consts))
 
 
 def view_compiled(code: str) -> str:
