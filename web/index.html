@@ -83,8 +83,18 @@
                 padding: 14px;
                 display: grid;
                 gap: 14px;
-                grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-                grid-auto-rows: minmax(320px, 1fr);
+                grid-template-columns: repeat(3, minmax(320px, 1fr));
+                grid-auto-rows: minmax(320px, auto);
+            }
+            @media (max-width: 1200px) {
+                main {
+                    grid-template-columns: repeat(2, minmax(320px, 1fr));
+                }
+            }
+            @media (max-width: 860px) {
+                main {
+                    grid-template-columns: minmax(320px, 1fr);
+                }
             }
             .panel {
                 display: flex;
@@ -96,6 +106,7 @@
                 min-height: 320px;
             }
             .panel.hidden { display: none; }
+            .panel.source-panel { grid-column: 1 / -1; }
             .panel > h2 {
                 margin: 0;
                 padding: 8px 12px;
@@ -107,6 +118,24 @@
                 border-bottom: 1px solid var(--panel-border);
                 letter-spacing: 0.04em;
                 text-transform: uppercase;
+            }
+            .panel-titlebar {
+                margin: 0;
+                padding: 8px 12px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                background: #1b212a;
+                border-bottom: 1px solid var(--panel-border);
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+            .panel-titlebar h2 {
+                margin: 0;
+                font-size: 12px;
+                font-weight: 600;
+                color: #f0f4f8;
             }
             .panel > .content {
                 flex: 1;
@@ -167,7 +196,6 @@
             <h1><strong>codoscope</strong> — <span id="pyver">loading CPython…</span></h1>
             <span class="status" id="status"></span>
             <span class="spacer"></span>
-            <button id="run" disabled>Run</button>
             <div class="toggles" id="toggles">
                 <label><input type="checkbox" data-view="source"     checked><span>Source</span></label>
                 <label><input type="checkbox" data-view="tokens"     checked><span>Tokens</span></label>
@@ -183,8 +211,11 @@
             automatically once the cross-origin-isolation service worker installs.
         </div>
         <main id="grid">
-            <section class="panel" data-view="source">
-                <h2>Source</h2>
+            <section class="panel source-panel" data-view="source">
+                <div class="panel-titlebar">
+                    <h2>Source</h2>
+                    <button id="run" disabled>Run</button>
+                </div>
                 <div id="editor">def f(x):
     return x * 2 + 10 + 1
 
