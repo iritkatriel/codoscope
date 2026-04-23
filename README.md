@@ -78,7 +78,7 @@ For showing the code of a python module you can run:
 env/bin/python codoscope/src/main.py -m package.module
 ```
 
-Once you run it, you can inspect parts of the source code and the corresponding code views by hovering over them. 
+Once you run it, you can inspect parts of the source code and the corresponding code views by hovering over them.
 
 ## Running tests
 
