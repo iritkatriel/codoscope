@@ -90,13 +90,15 @@
                 main {
                     grid-template-columns: repeat(2, minmax(320px, 1fr));
                 }
-                .panel.source-panel { grid-column: 1 / -1; }
+                .panel.source-panel { grid-column: span 1; }
+                .panel.run-panel { grid-column: span 1; }
             }
             @media (max-width: 860px) {
                 main {
                     grid-template-columns: minmax(320px, 1fr);
                 }
                 .panel.source-panel { grid-column: 1 / -1; }
+                .panel.run-panel { grid-column: 1 / -1; }
             }
             .panel {
                 display: flex;
