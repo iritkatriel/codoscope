@@ -33,7 +33,9 @@ class WebDriverTests(unittest.TestCase):
         self.assertIn("LOAD_CONST", rendered)
 
     def test_instruction_items_supports_list_and_get_instructions(self) -> None:
-        inst = dis.Instruction("LOAD_CONST", dis.opmap["LOAD_CONST"], 0, 1, "1", 0, 0, True, 1, None, None)
+        inst = dis.Instruction(
+            "LOAD_CONST", dis.opmap["LOAD_CONST"], 0, 1, "1", 0, 0, True, 1, None, None
+        )
         from_list = driver._instruction_items([inst])
         self.assertEqual(len(from_list), 1)
         self.assertEqual(from_list[0].opname, "LOAD_CONST")
@@ -54,16 +56,34 @@ class WebDriverTests(unittest.TestCase):
         self.assertEqual(resolved[2], "z")
 
     def test_merge_co_consts_fills_placeholders_from_compiled_consts(self) -> None:
-        merged = driver._merge_co_consts(["a", driver._ConstPlaceholder(1)], ["a", "b", "c"])
+        merged = driver._merge_co_consts(
+            ["a", driver._ConstPlaceholder(1)], ["a", "b", "c"]
+        )
         self.assertEqual(merged[1], "b")
         self.assertEqual(merged[2], "c")
 
     def test_apply_annotations_workaround_inserts_internal_const(self) -> None:
         pseudo_items = [
-            dis.Instruction("ANNOTATIONS_PLACEHOLDER", 0, 0, None, "", 0, 0, False, None, None, None),
-            dis.Instruction("LOAD_CONST", dis.opmap["LOAD_CONST"], 1, None, "", 1, 0, False, None, None, None),
+            dis.Instruction(
+                "ANNOTATIONS_PLACEHOLDER", 0, 0, None, "", 0, 0, False, None, None, None
+            ),
+            dis.Instruction(
+                "LOAD_CONST",
+                dis.opmap["LOAD_CONST"],
+                1,
+                None,
+                "",
+                1,
+                0,
+                False,
+                None,
+                None,
+                None,
+            ),
         ]
-        adjusted = driver._apply_annotations_const_workaround(pseudo_items, ["codeobj", None])
+        adjusted = driver._apply_annotations_const_workaround(
+            pseudo_items, ["codeobj", None]
+        )
         self.assertIn("<internal const>", [repr(v) for v in adjusted])
 
     def test_main_outputs_json_with_all_views(self) -> None:
