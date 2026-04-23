@@ -130,6 +130,15 @@ def _co_consts_from_metadata(metadata):
     return [value for _idx, value in sorted((idx, value) for value, idx in consts.items())]
 
 
+def _merge_co_consts(metadata_consts, compiled_consts):
+    if metadata_consts is None:
+        return list(compiled_consts)
+    merged = list(metadata_consts)
+    if len(compiled_consts) > len(merged):
+        merged.extend(compiled_consts[len(merged) :])
+    return merged
+
+
 def _fit_co_consts(items, co_consts):
     max_arg = _max_const_arg(items)
     if max_arg < 0:
@@ -154,9 +163,7 @@ def _instruction_items(insts):
 
 def view_pseudo(code: str, *, optimize: bool = False) -> str:
     insts, metadata = compiler_codegen(ast.parse(code, optimize=1), "<source>", 0)
-    co_consts = _co_consts_from_metadata(metadata)
-    if co_consts is None:
-        co_consts = _compiled_co_consts(code)
+    co_consts = _merge_co_consts(_co_consts_from_metadata(metadata), _compiled_co_consts(code))
     # On some newer WASM builds (e.g. CPython 3.15 snapshots), optimize_cfg can
     # trap at runtime with low-level wasm errors. Prefer a stable pseudo view
     # there instead of crashing the whole worker process.
