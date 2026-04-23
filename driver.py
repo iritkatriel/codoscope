@@ -104,6 +104,11 @@ class _ConstPlaceholder:
         return f"<const#{self.idx}>"
 
 
+class _InternalConstPlaceholder:
+    def __repr__(self):
+        return "<internal const>"
+
+
 def _max_const_arg(items):
     max_arg = -1
     for inst in items:
@@ -120,18 +125,106 @@ def _placeholder_consts(items):
     return [_ConstPlaceholder(i) for i in range(_max_const_arg(items) + 1)]
 
 
+def _co_consts_from_metadata(metadata):
+    if not metadata:
+        return None
+    consts = metadata.get("consts")
+    if not isinstance(consts, dict) or not consts:
+        return None
+    # compiler metadata stores const->index and indices may be sparse.
+    max_idx = max(consts.values())
+    resolved = [_ConstPlaceholder(i) for i in range(max_idx + 1)]
+    for value, idx in consts.items():
+        resolved[idx] = value
+    return resolved
+
+
+def _merge_co_consts(metadata_consts, compiled_consts):
+    if metadata_consts is None:
+        return list(compiled_consts)
+    merged = list(metadata_consts)
+    limit = max(len(merged), len(compiled_consts))
+    if len(merged) < limit:
+        merged.extend(_ConstPlaceholder(i) for i in range(len(merged), limit))
+    for i, value in enumerate(compiled_consts):
+        if isinstance(merged[i], _ConstPlaceholder):
+            merged[i] = value
+    return merged
+
+
+def _fit_co_consts(items, co_consts):
+    max_arg = _max_const_arg(items)
+    if max_arg < 0:
+        return co_consts
+    if len(co_consts) > max_arg:
+        return co_consts
+    fitted = list(co_consts)
+    fitted.extend(_ConstPlaceholder(i) for i in range(len(fitted), max_arg + 1))
+    return fitted
+
+
+def _is_annotations_placeholder(inst) -> bool:
+    if isinstance(inst, dis.Instruction):
+        return inst.opname == "ANNOTATIONS_PLACEHOLDER"
+    return dis._all_opname[inst[0]] == "ANNOTATIONS_PLACEHOLDER"
+
+
+def _load_const_arg(inst):
+    if isinstance(inst, dis.Instruction):
+        if inst.opcode in dis.hasconst:
+            return inst.arg
+        return None
+    op, arg = inst[0], inst[1]
+    if op in dis.hasconst:
+        return arg
+    return None
+
+
+def _apply_annotations_const_workaround(items, co_consts):
+    """3.15+ pseudo code may use an internal const slot for annotations.
+
+    Insert an explicit placeholder for that internal slot so subsequent
+    LOAD_CONST values align with user-visible constants.
+    """
+    for i, inst in enumerate(items):
+        if not _is_annotations_placeholder(inst):
+            continue
+        for nxt in items[i + 1 :]:
+            const_arg = _load_const_arg(nxt)
+            if const_arg is None:
+                continue
+            adjusted = list(co_consts)
+            insert_at = const_arg
+            if insert_at > len(adjusted):
+                adjusted.extend(_ConstPlaceholder(k) for k in range(len(adjusted), insert_at))
+            adjusted.insert(insert_at, _InternalConstPlaceholder())
+            return adjusted
+        break
+    return co_consts
+
+
+def _compiled_co_consts(code: str):
+    # Fallback source for const values when compiler metadata omits "consts".
+    return list(compile(code, "<source>", "exec", optimize=1).co_consts)
+
+
+def _instruction_items(insts):
+    if hasattr(insts, "get_instructions"):
+        return list(insts.get_instructions())
+    return list(insts)
+
+
 def view_pseudo(code: str, *, optimize: bool = False) -> str:
-    # CPython main's compiler_codegen() no longer puts "consts" in the metadata
-    # dict, and there is no Python-visible API to read them off the instruction
-    # sequence. Use opaque placeholders sized to the largest LOAD_CONST arg so
-    # the optimizer and dis.ArgResolver don't crash; const args render as
-    # <const#N> rather than their real values.
-    insts, _metadata = compiler_codegen(ast.parse(code, optimize=1), "<source>", 0)
-    if optimize:
-        placeholders = _placeholder_consts(list(insts.get_instructions()))
-        insts = optimize_cfg(insts, placeholders, 0)
-    items = list(insts.get_instructions())
-    return _disassemble(items, _placeholder_consts(items))
+    insts, metadata = compiler_codegen(ast.parse(code, optimize=1), "<source>", 0)
+    co_consts = _merge_co_consts(_co_consts_from_metadata(metadata), _compiled_co_consts(code))
+    # On some newer WASM builds (e.g. CPython 3.15 snapshots), optimize_cfg can
+    # trap at runtime with low-level wasm errors. Prefer a stable pseudo view
+    # there instead of crashing the whole worker process.
+    if optimize and sys.version_info < (3, 15):
+        insts = optimize_cfg(insts, co_consts, 0)
+    items = _instruction_items(insts)
+    adjusted_consts = _apply_annotations_const_workaround(items, co_consts)
+    return _disassemble(items, _fit_co_consts(items, adjusted_consts))
 
 
 def view_compiled(code: str) -> str:
