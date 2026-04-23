@@ -133,13 +133,18 @@
                 letter-spacing: 0.04em;
                 text-transform: uppercase;
             }
-            .panel-titlebar #run { order: 1; }
-            .panel-titlebar h2 { order: 2; }
             .panel-titlebar h2 {
                 margin: 0;
                 font-size: 12px;
                 font-weight: 600;
                 color: #f0f4f8;
+            }
+            .run-controls {
+                display: flex;
+                flex: 1;
+                align-items: flex-start;
+                justify-content: center;
+                padding: 12px;
             }
             .panel > .content {
                 flex: 1;
@@ -175,6 +180,9 @@
                 min-height: 0;
             }
             .ace_editor { font-size: 12px !important; }
+            .source-panel #editor {
+                min-height: 360px;
+            }
             .banner {
                 padding: 8px 16px;
                 color: var(--error);
@@ -217,13 +225,18 @@
         <main id="grid">
             <section class="panel source-panel" data-view="source">
                 <div class="panel-titlebar">
-                    <button id="run" disabled>Run</button>
                     <h2>Source</h2>
                 </div>
                 <div id="editor">def f(x):
     return x * 2 + 10 + 1
 
 print(f(42))</div>
+            </section>
+            <section class="panel run-panel">
+                <h2>Actions</h2>
+                <div class="run-controls">
+                    <button id="run" disabled>Run</button>
+                </div>
             </section>
             <section class="panel" data-view="tokens">
                 <h2>Tokens</h2><pre class="content"></pre>
