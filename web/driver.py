@@ -7,13 +7,21 @@ import json
 import sys
 import tokenize
 import traceback
+import types
 from token import tok_name
+from typing import Any, Iterator
 
 from _testinternalcapi import compiler_codegen, optimize_cfg
 
 
-def view_tokens(code: str) -> str:
-    out = []
+def _as_view(rows: list[tuple[str, int | None]]) -> dict[str, Any]:
+    text_lines = [row[0] for row in rows]
+    src_lines = [row[1] for row in rows]
+    return {"text": "\n".join(text_lines), "lines": src_lines}
+
+
+def view_tokens(code: str) -> dict[str, Any]:
+    rows = []
     toks = tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline)
     current_line = 0
     for t in toks:
@@ -24,14 +32,77 @@ def view_tokens(code: str) -> str:
             marker = f"{line:4d}: "
         else:
             marker = "      "
-        out.append(f"{marker}{tok_name[t.exact_type]:10} {t.string!r}")
+        rows.append(
+            (
+                f"{marker}{tok_name[t.exact_type]:10} {t.string!r}",
+                line if line > 0 else None,
+            )
+        )
         current_line = line
-    return "\n".join(out)
+    return _as_view(rows)
 
 
-def view_ast(code: str, *, optimize: bool = False) -> str:
+def _has_ast_children(node: ast.AST) -> bool:
+    if isinstance(node, ast.Name):
+        return False
+    SENTINEL = object()
+    for name in node._fields:
+        value = getattr(node, name, SENTINEL)
+        if isinstance(value, (list, ast.AST)):
+            return True
+    return False
+
+
+def _ast_attr_repr(node: ast.AST, attr: str) -> str:
+    value = getattr(node, attr, ...)
+    if isinstance(value, (ast.Load, ast.Store, ast.Del)):
+        return value.__class__.__name__
+    return repr(value)
+
+
+def _dump_ast(tree: ast.AST) -> Iterator[tuple[str, int | None]]:
+    SENTINEL = object()
+    indent = "    "
+
+    def walk(
+        node: Any, level: int = 0, last_line: int = 0, prepend: str = ""
+    ) -> Iterator[tuple[str, int]]:
+        prefix = f"{indent * level}{prepend}"
+        if isinstance(node, ast.AST):
+            fields = node._fields
+            start = getattr(node, "lineno", last_line) or last_line
+            if not _has_ast_children(node):
+                args = ", ".join(f"{n}={_ast_attr_repr(node, n)}" for n in fields)
+                yield f"{prefix}{node.__class__.__name__}({args})", start
+            else:
+                yield f"{prefix}{node.__class__.__name__}()", start
+                for name in fields:
+                    value = getattr(node, name, SENTINEL)
+                    if value is SENTINEL:
+                        continue
+                    yield from walk(value, level + 1, start, f"{name}=")
+        elif isinstance(node, list):
+            if len(node) == 1 and not _has_ast_children(node[0]):
+                inner = list(walk(node[0], level, last_line, prepend + "["))
+                if len(inner) == 1:
+                    text, line = inner[0]
+                    yield text + "]", line
+                    return
+                yield from inner
+            else:
+                yield f"{prefix}[]", last_line
+                for value in node:
+                    yield from walk(value, level + 1, last_line)
+        else:
+            yield f"{prefix}{node!r}", last_line
+
+    for text, line in walk(tree):
+        yield text, (line if line and line > 0 else None)
+
+
+def view_ast(code: str, *, optimize: bool = False) -> dict[str, Any]:
     tree = ast.parse(code, optimize=1) if optimize else ast.parse(code)
-    return ast.dump(tree, indent=4)
+    return _as_view(list(_dump_ast(tree)))
 
 
 class _PseudoArgResolver(dis.ArgResolver):
@@ -44,10 +115,13 @@ class _PseudoArgResolver(dis.ArgResolver):
 class _CaptureStream:
     def __init__(self):
         self.lines = []
+        self.src_lines = []
+        self.current_line = None
 
     def write(self, line):
         if line.strip():
             self.lines.append(line)
+            self.src_lines.append(self.current_line)
 
 
 def _iter_instructions(insts, resolver):
@@ -78,20 +152,28 @@ def _iter_instructions(insts, resolver):
         )
 
 
-def _disassemble(insts_list, co_consts) -> str:
+class _LineTrackingFormatter(dis.Formatter):
+    def print_instruction(self, instr, mark_as_current=False):
+        line = getattr(instr, "line_number", None)
+        if line:
+            self.file.current_line = line
+        super().print_instruction(instr, mark_as_current=mark_as_current)
+
+
+def _disassemble(insts_list, co_consts) -> dict[str, Any]:
     stream = _CaptureStream()
     jump_targets = [
         t for op, t, *_ in insts_list if op in dis.hasjump or op in dis.hasexc
     ]
     labels_map = {o: i for i, o in enumerate(jump_targets, start=1)}
     resolver = _PseudoArgResolver(co_consts=co_consts, labels_map=labels_map)
-    fmt = dis.Formatter(
+    fmt = _LineTrackingFormatter(
         file=stream,
         lineno_width=4,
         label_width=4 + len(str(len(labels_map))),
     )
     dis.print_instructions(_iter_instructions(insts_list, resolver), None, fmt)
-    return "\n".join(stream.lines)
+    return {"text": "\n".join(stream.lines), "lines": list(stream.src_lines)}
 
 
 class _ConstPlaceholder:
@@ -216,7 +298,35 @@ def _instruction_items(insts):
     return list(insts)
 
 
-def view_pseudo(code: str, *, optimize: bool = False) -> str:
+def _iter_nested_code_objects(co: types.CodeType) -> Iterator[types.CodeType]:
+    for const in co.co_consts:
+        if isinstance(const, types.CodeType):
+            yield const
+            yield from _iter_nested_code_objects(const)
+
+
+def _heading_view(co: types.CodeType) -> dict[str, Any]:
+    name = getattr(co, "co_qualname", None) or co.co_name
+    text = f"\nDisassembly of <code object {name} at line {co.co_firstlineno}>:"
+    return {"text": text, "lines": [None] * (text.count("\n") + 1)}
+
+
+def _combine_views(*parts: dict[str, Any]) -> dict[str, Any]:
+    text_segs = []
+    src_lines = []
+    for p in parts:
+        text_segs.append(p["text"])
+        src_lines.extend(p["lines"])
+    return {"text": "\n".join(text_segs), "lines": src_lines}
+
+
+def _nested_compiled_views(co: types.CodeType) -> Iterator[dict[str, Any]]:
+    for nested in _iter_nested_code_objects(co):
+        yield _heading_view(nested)
+        yield _disassemble(list(dis.Bytecode(nested)), list(nested.co_consts))
+
+
+def view_pseudo(code: str, *, optimize: bool = False) -> dict[str, Any]:
     insts, metadata = compiler_codegen(ast.parse(code, optimize=1), "<source>", 0)
     co_consts = _merge_co_consts(
         _co_consts_from_metadata(metadata), _compiled_co_consts(code)
@@ -228,16 +338,18 @@ def view_pseudo(code: str, *, optimize: bool = False) -> str:
         insts = optimize_cfg(insts, co_consts, 0)
     items = _instruction_items(insts)
     adjusted_consts = _apply_annotations_const_workaround(items, co_consts)
-    return _disassemble(items, _fit_co_consts(items, adjusted_consts))
+    top = _disassemble(items, _fit_co_consts(items, adjusted_consts))
+    co = compile(code, "<source>", "exec", optimize=1)
+    return _combine_views(top, *_nested_compiled_views(co))
 
 
-def view_compiled(code: str) -> str:
+def view_compiled(code: str) -> dict[str, Any]:
     # assemble_code_object requires metadata["consts"] that compiler_codegen
     # no longer emits. Fall back to the public compile() API which yields an
     # equivalent final code object (with real consts).
     co = compile(code, "<source>", "exec", optimize=1)
-    items = list(dis.Bytecode(co))
-    return _disassemble(items, list(co.co_consts))
+    top = _disassemble(list(dis.Bytecode(co)), list(co.co_consts))
+    return _combine_views(top, *_nested_compiled_views(co))
 
 
 VIEWS = {
@@ -258,9 +370,11 @@ def main() -> int:
     result = {"python_version": sys.version.split()[0]}
     for name, fn in VIEWS.items():
         try:
-            result[name] = fn(code)
+            view = fn(code)
         except Exception:
-            result[name] = traceback.format_exc()
+            text = traceback.format_exc()
+            view = {"text": text, "lines": [None] * len(text.splitlines())}
+        result[name] = view
     json.dump(result, sys.stdout)
     return 0
 
