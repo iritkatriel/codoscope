@@ -75,15 +75,26 @@ const emscriptenSettings = {
     const minor = (versionInt >>> 16) & 0xff;
     // Prevent complaints about not finding exec-prefix by making a lib-dynload directory
     Module.FS.mkdirTree(`/lib/python${major}.${minor}/lib-dynload/`);
-    Module.addRunDependency("install-stdlib");
-    const resp = await fetch(`python${major}.${minor}.zip`);
-    const stdlibBuffer = await resp.arrayBuffer();
-    Module.FS.writeFile(
-      `/lib/python${major}${minor}.zip`,
-      new Uint8Array(stdlibBuffer),
-      { canOwn: true },
-    );
-    Module.removeRunDependency("install-stdlib");
+    const depName = "install-stdlib";
+    const stdlibName = `python${major}.${minor}.zip`;
+    Module.addRunDependency(depName);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const resp = await fetch(stdlibName, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!resp.ok) {
+        throw new Error(`failed to fetch ${stdlibName}: HTTP ${resp.status}`);
+      }
+      const stdlibBuffer = await resp.arrayBuffer();
+      Module.FS.writeFile(
+        `/lib/python${major}${minor}.zip`,
+        new Uint8Array(stdlibBuffer),
+        { canOwn: true },
+      );
+    } finally {
+      Module.removeRunDependency(depName);
+    }
   },
 };
 
@@ -91,16 +102,23 @@ const modulePromise = createEmscriptenModule(emscriptenSettings);
 
 onmessage = async (event) => {
   if (event.data.type === "run") {
-    const Module = await modulePromise;
-    if (event.data.files) {
-      for (const [filename, contents] of Object.entries(event.data.files)) {
-        Module.FS.writeFile(filename, contents);
+    try {
+      const Module = await modulePromise;
+      if (event.data.files) {
+        for (const [filename, contents] of Object.entries(event.data.files)) {
+          Module.FS.writeFile(filename, contents);
+        }
       }
+      const ret = Module.callMain(event.data.args);
+      postMessage({
+        type: "finished",
+        returnCode: ret,
+      });
+    } catch (error) {
+      postMessage({
+        type: "worker-error",
+        error: String(error),
+      });
     }
-    const ret = Module.callMain(event.data.args);
-    postMessage({
-      type: "finished",
-      returnCode: ret,
-    });
   }
 };
