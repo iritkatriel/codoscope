@@ -1,12 +1,23 @@
 name: "Build"
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       cpython_ref:
         required: true
         default: "main"
         description: "Ref of CPython to build"
+      deploy_channel:
+        required: true
+        default: "stable"
+        description: "Where to publish the site"
+        type: choice
+        options:
+          - stable
+          - dev
 # Maybe rebuild evrery now and again?
 #  schedule:
 #    - cron: ""
@@ -25,6 +36,7 @@ jobs:
       emscripten_version: ${{ steps.versions.outputs.emscripten_version }}
       node_version: ${{ steps.versions.outputs.node_version }}
       cpython_ref: ${{ steps.ref.outputs.cpython_ref }}
+      deploy_channel: ${{ steps.channel.outputs.deploy_channel }}
     steps:
       - name: "Resolve cpython ref"
         id: ref
@@ -33,6 +45,18 @@ jobs:
         run: |
           ref="${REF_INPUT:-main}"
           echo "cpython_ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: "Resolve deploy channel"
+        id: channel
+        env:
+          CHANNEL_INPUT: ${{ inputs.deploy_channel }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "push" ]; then
+            channel="dev"
+          else
+            channel="${CHANNEL_INPUT:-stable}"
+          fi
+          echo "deploy_channel=$channel" >> "$GITHUB_OUTPUT"
       - name: "Checkout cpython @ ${{ steps.ref.outputs.cpython_ref }}"
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -106,6 +130,9 @@ jobs:
           rm _site/server.py
           cp codoscope/web/index.html _site/index.html
           cp codoscope/web/driver.py  _site/driver.py
+          if [ -f codoscope/web/python.worker.mjs ]; then
+            cp codoscope/web/python.worker.mjs _site/python.worker.mjs
+          fi
 
       - name: "Add Pages bits"
         shell: bash
@@ -129,11 +156,13 @@ jobs:
           include-hidden-files: true
 
   deploy:
-    name: "Publish to gh-pages branch"
+    name: "Publish site"
     needs: [get-emscripten-version, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      DEPLOY_CHANNEL: ${{ needs.get-emscripten-version.outputs.deploy_channel }}
     steps:
       - name: "Checkout"
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -146,11 +175,25 @@ jobs:
           name: site
           path: site
 
-      - name: "Deploy to gh-pages"
+      - name: "Deploy dev site to gh-pages/dev"
+        if: env.DEPLOY_CHANNEL == 'dev'
         uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
           publish_branch: gh-pages
-          force_orphan: true
-          commit_message: "Publish CPython WASM build (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
+          destination_dir: dev
+          keep_files: true
+          force_orphan: false
+          commit_message: "Publish dev CPython WASM build (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
+
+      - name: "Deploy stable site to gh-pages root"
+        if: env.DEPLOY_CHANNEL == 'stable'
+        uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          keep_files: true
+          force_orphan: false
+          commit_message: "Publish stable CPython WASM build (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
