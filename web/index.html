@@ -131,6 +131,8 @@
                 letter-spacing: 0.04em;
                 text-transform: uppercase;
             }
+            .panel-titlebar #run { order: 1; }
+            .panel-titlebar h2 { order: 2; }
             .panel-titlebar h2 {
                 margin: 0;
                 font-size: 12px;
@@ -213,8 +215,8 @@
         <main id="grid">
             <section class="panel source-panel" data-view="source">
                 <div class="panel-titlebar">
-                    <h2>Source</h2>
                     <button id="run" disabled>Run</button>
+                    <h2>Source</h2>
                 </div>
                 <div id="editor">def f(x):
     return x * 2 + 10 + 1
