@@ -126,16 +126,24 @@ def _co_consts_from_metadata(metadata):
     consts = metadata.get("consts")
     if not isinstance(consts, dict) or not consts:
         return None
-    # compiler metadata stores const->index; disassembly expects a dense list.
-    return [value for _idx, value in sorted((idx, value) for value, idx in consts.items())]
+    # compiler metadata stores const->index and indices may be sparse.
+    max_idx = max(consts.values())
+    resolved = [_ConstPlaceholder(i) for i in range(max_idx + 1)]
+    for value, idx in consts.items():
+        resolved[idx] = value
+    return resolved
 
 
 def _merge_co_consts(metadata_consts, compiled_consts):
     if metadata_consts is None:
         return list(compiled_consts)
     merged = list(metadata_consts)
-    if len(compiled_consts) > len(merged):
-        merged.extend(compiled_consts[len(merged) :])
+    limit = max(len(merged), len(compiled_consts))
+    if len(merged) < limit:
+        merged.extend(_ConstPlaceholder(i) for i in range(len(merged), limit))
+    for i, value in enumerate(compiled_consts):
+        if isinstance(merged[i], _ConstPlaceholder):
+            merged[i] = value
     return merged
 
 
