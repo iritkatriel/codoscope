@@ -90,11 +90,13 @@
                 main {
                     grid-template-columns: repeat(2, minmax(320px, 1fr));
                 }
+                .panel.source-panel { grid-column: 1 / -1; }
             }
             @media (max-width: 860px) {
                 main {
                     grid-template-columns: minmax(320px, 1fr);
                 }
+                .panel.source-panel { grid-column: 1 / -1; }
             }
             .panel {
                 display: flex;
@@ -106,7 +108,7 @@
                 min-height: 320px;
             }
             .panel.hidden { display: none; }
-            .panel.source-panel { grid-column: 1 / -1; }
+            .panel.source-panel { grid-column: span 2; }
             .panel > h2 {
                 margin: 0;
                 padding: 8px 12px;
@@ -131,6 +133,8 @@
                 letter-spacing: 0.04em;
                 text-transform: uppercase;
             }
+            .panel-titlebar #run { order: 1; }
+            .panel-titlebar h2 { order: 2; }
             .panel-titlebar h2 {
                 margin: 0;
                 font-size: 12px;
@@ -213,8 +217,8 @@
         <main id="grid">
             <section class="panel source-panel" data-view="source">
                 <div class="panel-titlebar">
-                    <h2>Source</h2>
                     <button id="run" disabled>Run</button>
+                    <h2>Source</h2>
                 </div>
                 <div id="editor">def f(x):
     return x * 2 + 10 + 1
