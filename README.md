@@ -1,6 +1,8 @@
 # Codoscope
 
-Visualize the python compile pipeline
+Visualize the python compile pipeline.
+Codoscope is available [online](https://iritkatriel.github.io/codoscope/)
+or in your terminal (see below for instructions)!
 
 
 ## Install
