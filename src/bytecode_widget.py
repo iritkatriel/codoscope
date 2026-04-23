@@ -108,6 +108,15 @@ def _get_instructions(
         )
 
 
+def _instruction_items(
+    insts: Any,
+) -> list[PseudoInstruction | dis.Instruction]:
+    """Support both CFG objects and plain instruction lists."""
+    if hasattr(insts, "get_instructions"):
+        return list(insts.get_instructions())
+    return list(insts)
+
+
 def _disassemble(
     insts: Sequence[PseudoInstruction | dis.Instruction],
     co_consts: Sequence[object],
@@ -174,7 +183,7 @@ class BytecodeWidget(BaseWidget):
                 bytecode = dis.Bytecode(co)
                 output = list(bytecode)
             else:
-                output = insts.get_instructions()
+                output = _instruction_items(insts)
 
             self.update(_disassemble(output, co_consts, f"<{self.mode} bytecode>"))
         else:
