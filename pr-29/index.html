@@ -367,7 +367,10 @@ print(f(42))</div>
                         finished = true;
                         clearInterval(watchdog);
                         worker.terminate();
-                        showError(`Worker initialization failed: ${d.error || "unknown error"}`);
+                        const stderrText = String.fromCharCode(...stderr).trimEnd();
+                        const parts = [`Worker error: ${d.error || "unknown error"}`];
+                        if (stderrText) parts.push("", "stderr:", stderrText);
+                        showError(parts.join("\n"));
                         runBtn.disabled = false;
                     } else if (d.type === "ready") {
                         status.textContent = "runtime ready, running…";
