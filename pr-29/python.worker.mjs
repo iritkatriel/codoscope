@@ -96,16 +96,14 @@ const buildEmscriptenSettings = (pythonDir) => ({
   },
 });
 
-let modulePromise = null;
+const pythonDir = new URL(self.location.href).searchParams.get("dir");
+const modulePromise = import(`${pythonDir}python.mjs`).then((mod) =>
+  mod.default(buildEmscriptenSettings(pythonDir)),
+);
 
 onmessage = async (event) => {
   if (event.data.type === "run") {
     try {
-      const pythonDir = event.data.pythonDir || "./";
-      if (!modulePromise) {
-        const mod = await import(`${pythonDir}python.mjs`);
-        modulePromise = mod.default(buildEmscriptenSettings(pythonDir));
-      }
       const Module = await modulePromise;
       if (event.data.files) {
         for (const [filename, contents] of Object.entries(event.data.files)) {
