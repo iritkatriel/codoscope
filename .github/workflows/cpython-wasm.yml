@@ -13,10 +13,6 @@ on:
       - reopened
   workflow_dispatch:
     inputs:
-      cpython_ref:
-        required: true
-        default: "main"
-        description: "Ref of CPython to build"
       deploy_channel:
         required: true
         default: "stable"
@@ -35,23 +31,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  get-emscripten-version:
-    name: "Read pinned Emscripten/Node versions from CPython"
+  setup:
+    name: "Resolve deploy channel"
     runs-on: ubuntu-latest
     outputs:
-      emscripten_version: ${{ steps.versions.outputs.emscripten_version }}
-      node_version: ${{ steps.versions.outputs.node_version }}
-      cpython_ref: ${{ steps.ref.outputs.cpython_ref }}
       deploy_channel: ${{ steps.channel.outputs.deploy_channel }}
       deploy_destination: ${{ steps.channel.outputs.deploy_destination }}
     steps:
-      - name: "Resolve cpython ref"
-        id: ref
-        env:
-          REF_INPUT: ${{ inputs.cpython_ref }}
-        run: |
-          ref="${REF_INPUT:-main}"
-          echo "cpython_ref=$ref" >> "$GITHUB_OUTPUT"
       - name: "Resolve deploy channel"
         id: channel
         env:
@@ -71,37 +57,23 @@ jobs:
           fi
           echo "deploy_channel=$channel" >> "$GITHUB_OUTPUT"
           echo "deploy_destination=$destination" >> "$GITHUB_OUTPUT"
-      - name: "Checkout cpython @ ${{ steps.ref.outputs.cpython_ref }}"
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: "python/cpython"
-          ref: ${{ steps.ref.outputs.cpython_ref }}
-          persist-credentials: false
-      - name: "Install Python"
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.x"
-      - name: "Read config.toml"
-        id: versions
-        shell: python
-        run: |
-          import os, tomllib
-          from pathlib import Path
-          cfg = tomllib.loads(Path("Platforms/emscripten/config.toml").read_text())
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"emscripten_version={cfg['emscripten-version']}\n")
-              f.write(f"node_version={cfg['node-version']}\n")
 
   build:
-    name: "Cross-compile CPython to wasm32-emscripten"
-    needs: get-emscripten-version
+    name: "Build CPython ${{ matrix.version }}"
+    needs: setup
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: "3.14"
+            ref: "3.14"
+          - version: "3.15"
+            ref: "main"
     env:
-      CPYTHON_REF: ${{ needs.get-emscripten-version.outputs.cpython_ref }}
-    defaults:
-      run:
-        working-directory: cpython
+      CPYTHON_REF: ${{ matrix.ref }}
+      CPYTHON_VERSION: ${{ matrix.version }}
     steps:
       - name: "Checkout codoscope"
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -122,42 +94,77 @@ jobs:
         with:
           python-version: "3"
 
+      - name: "Read pinned Emscripten/Node versions from CPython"
+        id: versions
+        shell: python
+        run: |
+          import os, tomllib
+          from pathlib import Path
+          cfg = tomllib.loads(Path("cpython/Platforms/emscripten/config.toml").read_text())
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"emscripten_version={cfg['emscripten-version']}\n")
+              f.write(f"node_version={cfg['node-version']}\n")
+
       - name: "Install Node"
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: ${{ needs.get-emscripten-version.outputs.node_version }}
+          node-version: ${{ steps.versions.outputs.node_version }}
 
-      - name: "Install Emscripten SDK ${{ needs.get-emscripten-version.outputs.emscripten_version }}"
+      - name: "Install Emscripten SDK ${{ steps.versions.outputs.emscripten_version }}"
         uses: mymindstorm/setup-emsdk@6ab9eb1bda2574c4ddb79809fc9247783eaf9021 # v14
         with:
-          version: ${{ needs.get-emscripten-version.outputs.emscripten_version }}
-          actions-cache-folder: emsdk-cache
+          version: ${{ steps.versions.outputs.emscripten_version }}
+          actions-cache-folder: emsdk-${{ matrix.version }}
 
       - name: "Build"
+        working-directory: cpython
         run: python3 Tools/wasm/emscripten build --quiet
 
-      - name: "Stage site"
-        working-directory: ${{ github.workspace }}
-        run: |
-          mkdir _site
-          cp -a cpython/cross-build/wasm32-emscripten/build/python/web_example/. _site/
-          rm _site/server.py
-          cp codoscope/web/index.html _site/index.html
-          cp codoscope/web/driver.py  _site/driver.py
-          if [ -f codoscope/web/python.worker.mjs ]; then
-            cp codoscope/web/python.worker.mjs _site/python.worker.mjs
-          fi
-
-      - name: "Add Pages bits"
-        shell: bash
-        working-directory: ${{ github.workspace }}/_site
+      - name: "Stage runtime for ${{ matrix.version }}"
         run: |
           set -euo pipefail
+          dest="runtime/cpython/${CPYTHON_VERSION}"
+          src="cpython/cross-build/wasm32-emscripten/build/python/web_example"
+          mkdir -p "$dest"
+          cp "$src/python.mjs"  "$dest/"
+          cp "$src/python.wasm" "$dest/"
+          cp "$src/python${CPYTHON_VERSION}.zip" "$dest/"
+
+      - name: "Upload runtime artifact"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cpython-runtime-${{ matrix.version }}
+          path: runtime
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    name: "Assemble site"
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout codoscope"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: "Download runtime artifacts"
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: cpython-runtime-*
+          path: runtime-artifacts
+          merge-multiple: true
+
+      - name: "Assemble site"
+        run: |
+          set -euo pipefail
+          cp -a web _site
+          cp -a runtime-artifacts/cpython _site/cpython
           # GitHub Pages cannot set COOP/COEP headers, but the Emscripten
           # thingy needs SharedArrayBuffer. coi-serviceworker installs
           # those headers client-side (which costs us one automatic reload).
           # The <script src="coi-serviceworker.js"> tag lives in web/index.html.
-          curl -fsSL -o coi-serviceworker.js \
+          curl -fsSL -o _site/coi-serviceworker.js \
             https://cdn.jsdelivr.net/gh/gzuidhof/coi-serviceworker@7b1d2a092d0d2dd2b7270b6f12f13605de26f214/coi-serviceworker.min.js
 
       - name: "Upload site artifact"
@@ -171,15 +178,15 @@ jobs:
 
   deploy:
     name: "Publish site"
-    needs: [get-emscripten-version, build]
+    needs: [setup, assemble]
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: write
       pull-requests: write
     env:
-      DEPLOY_CHANNEL: ${{ needs.get-emscripten-version.outputs.deploy_channel }}
-      DEPLOY_DESTINATION: ${{ needs.get-emscripten-version.outputs.deploy_destination }}
+      DEPLOY_CHANNEL: ${{ needs.setup.outputs.deploy_channel }}
+      DEPLOY_DESTINATION: ${{ needs.setup.outputs.deploy_destination }}
     steps:
       - name: "Checkout"
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -213,7 +220,7 @@ jobs:
           publish_branch: gh-pages
           keep_files: true
           force_orphan: false
-          commit_message: "Publish site from main (cpython@${{ needs.get-emscripten-version.outputs.cpython_ref || 'main' }})"
+          commit_message: "Publish site from main (cpython 3.14/3.15)"
 
       - name: "Comment PR preview URL"
         if: env.DEPLOY_CHANNEL == 'preview'

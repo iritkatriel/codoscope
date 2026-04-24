@@ -1,5 +1,3 @@
-import createEmscriptenModule from "./python.mjs";
-
 class StdinBuffer {
   constructor() {
     this.sab = new SharedArrayBuffer(128 * Int32Array.BYTES_PER_ELEMENT);
@@ -61,7 +59,7 @@ const stderr = (charCode) => {
 
 const stdinBuffer = new StdinBuffer();
 
-const emscriptenSettings = {
+const buildEmscriptenSettings = (pythonDir) => ({
   noInitialRun: true,
   stdin: stdinBuffer.stdin,
   stdout: stdout,
@@ -81,7 +79,7 @@ const emscriptenSettings = {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
-      const resp = await fetch(stdlibName, { signal: controller.signal });
+      const resp = await fetch(`${pythonDir}${stdlibName}`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!resp.ok) {
         throw new Error(`failed to fetch ${stdlibName}: HTTP ${resp.status}`);
@@ -96,13 +94,18 @@ const emscriptenSettings = {
       Module.removeRunDependency(depName);
     }
   },
-};
+});
 
-const modulePromise = createEmscriptenModule(emscriptenSettings);
+let modulePromise = null;
 
 onmessage = async (event) => {
   if (event.data.type === "run") {
     try {
+      const pythonDir = event.data.pythonDir || "./";
+      if (!modulePromise) {
+        const mod = await import(`${pythonDir}python.mjs`);
+        modulePromise = mod.default(buildEmscriptenSettings(pythonDir));
+      }
       const Module = await modulePromise;
       if (event.data.files) {
         for (const [filename, contents] of Object.entries(event.data.files)) {
