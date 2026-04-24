@@ -346,7 +346,8 @@ print(f(42))</div>
                 const stdout = [];
                 const stderr = [];
                 let finished = false;
-                const worker = new Worker("./python.worker.mjs", { type: "module" });
+                const workerUrl = `./python.worker.mjs?dir=${encodeURIComponent(getPythonDir())}`;
+                const worker = new Worker(workerUrl, { type: "module" });
                 const startedAt = Date.now();
                 const watchdog = setInterval(() => {
                     if (finished) {
@@ -415,7 +416,6 @@ print(f(42))</div>
                 worker.postMessage({
                     type: "run",
                     args: ["driver.py"],
-                    pythonDir: getPythonDir(),
                     files: {
                         "driver.py": driverSource,
                         "user.py":   window.editor.getValue(),
