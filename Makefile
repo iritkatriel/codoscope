@@ -1,5 +1,6 @@
 PYTHON ?= python3.13
 WEB_PORT ?= 8000
+CPY_VERSION ?= 3.15
 
 .PHONY: test web web-sync web-kill web-restart
 test:
@@ -10,6 +11,12 @@ web-sync:
 	cp web/index.html _site/index.html
 	cp web/driver.py _site/driver.py
 	cp web/python.worker.mjs _site/python.worker.mjs
+	@mkdir -p _site/cpython/$(CPY_VERSION)
+	@for f in python.mjs python.wasm python$(CPY_VERSION).zip; do \
+		if [ -f _site/$$f ] && [ ! -e _site/cpython/$(CPY_VERSION)/$$f ]; then \
+			mv _site/$$f _site/cpython/$(CPY_VERSION)/$$f; \
+		fi; \
+	done
 
 web: web-sync
 	@echo "Serving codoscope web UI at http://localhost:$(WEB_PORT)"

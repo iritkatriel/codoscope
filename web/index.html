@@ -79,6 +79,22 @@
             }
             .toggles input { accent-color: var(--accent); }
             .toggles input:checked + span { color: var(--text); }
+            .pyversion {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                color: var(--muted);
+            }
+            .pyversion select {
+                background: #232a35;
+                color: var(--text);
+                border: 1px solid var(--panel-border);
+                padding: 4px 6px;
+                border-radius: 4px;
+                font: inherit;
+                cursor: pointer;
+            }
+            .pyversion select:disabled { opacity: 0.5; cursor: wait; }
             main {
                 padding: 14px;
                 display: grid;
@@ -167,6 +183,10 @@
             <h1><strong>codoscope</strong> — <span id="pyver">loading CPython…</span></h1>
             <span class="status" id="status"></span>
             <span class="spacer"></span>
+            <label class="pyversion">
+                <span>Python</span>
+                <select id="pyversion" disabled></select>
+            </label>
             <button id="run" disabled>Run</button>
             <div class="toggles" id="toggles">
                 <label><input type="checkbox" data-view="source"     checked><span>Source</span></label>
@@ -213,12 +233,30 @@ print(f(42))</div>
             const runBtn   = document.getElementById("run");
             const status   = document.getElementById("status");
             const pyver    = document.getElementById("pyver");
+            const pyversionSelect = document.getElementById("pyversion");
             const panels   = Array.from(document.querySelectorAll(".panel"));
             const toggles  = Array.from(document.querySelectorAll("#toggles input"));
 
             const VIEWS = ["tokens", "ast", "ast-opt", "pseudo", "pseudo-opt", "compiled"];
+            const PYTHON_VERSIONS = ["3.14", "3.15"];
+            const DEFAULT_PYTHON_VERSION = "3.15";
+            const VERSION_STORAGE_KEY = "codoscope:python-version";
 
             let driverSource = null;
+
+            const getPythonDir = () => `./cpython/${pyversionSelect.value}/`;
+
+            const initVersionSelect = () => {
+                for (const v of PYTHON_VERSIONS) {
+                    const opt = document.createElement("option");
+                    opt.value = v;
+                    opt.textContent = v;
+                    pyversionSelect.appendChild(opt);
+                }
+                const stored = localStorage.getItem(VERSION_STORAGE_KEY);
+                pyversionSelect.value = PYTHON_VERSIONS.includes(stored) ? stored : DEFAULT_PYTHON_VERSION;
+                pyversionSelect.disabled = false;
+            };
 
             const applyToggles = () => {
                 for (const box of toggles) {
@@ -308,7 +346,8 @@ print(f(42))</div>
                 const stdout = [];
                 const stderr = [];
                 let finished = false;
-                const worker = new Worker("./python.worker.mjs", { type: "module" });
+                const workerUrl = `./python.worker.mjs?dir=${encodeURIComponent(getPythonDir())}`;
+                const worker = new Worker(workerUrl, { type: "module" });
                 const startedAt = Date.now();
                 const watchdog = setInterval(() => {
                     if (finished) {
@@ -328,7 +367,10 @@ print(f(42))</div>
                         finished = true;
                         clearInterval(watchdog);
                         worker.terminate();
-                        showError(`Worker initialization failed: ${d.error || "unknown error"}`);
+                        const stderrText = String.fromCharCode(...stderr).trimEnd();
+                        const parts = [`Worker error: ${d.error || "unknown error"}`];
+                        if (stderrText) parts.push("", "stderr:", stderrText);
+                        showError(parts.join("\n"));
                         runBtn.disabled = false;
                     } else if (d.type === "ready") {
                         status.textContent = "runtime ready, running…";
@@ -390,6 +432,13 @@ print(f(42))</div>
             applyToggles();
 
             runBtn.addEventListener("click", run);
+
+            pyversionSelect.addEventListener("change", () => {
+                localStorage.setItem(VERSION_STORAGE_KEY, pyversionSelect.value);
+                run();
+            });
+
+            initVersionSelect();
 
             window.addEventListener("load", async () => {
                 try {
