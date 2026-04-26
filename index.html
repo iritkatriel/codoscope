@@ -132,6 +132,12 @@
             .panel > .content .line.highlight {
                 background: rgba(255, 215, 0, 0.35);
             }
+            .ast-node      { color: #5fc1e0; }
+            .ast-field     { color: #6cb6ff; }
+            .ast-attribute { color: #8a93a0; }
+            .ast-string    { color: #b5e890; }
+            .ast-number    { color: #f0c674; }
+            .ast-keyword   { color: #b9a0ff; font-weight: bold; }
             .ace-codoscope-highlight {
                 position: absolute;
                 background: rgba(255, 215, 0, 0.35);
@@ -233,13 +239,19 @@ print(f(42))</div>
                 content.innerHTML = "";
                 const text = typeof data === "string" ? data : data.text;
                 const lines = typeof data === "string" ? [] : (data.lines || []);
+                const isHtml = typeof data === "object" && data !== null && data.html === true;
                 const parts = text.split("\n");
                 const wrap = document.createElement("div");
                 wrap.className = "lines";
                 for (let i = 0; i < parts.length; i++) {
                     const div = document.createElement("div");
                     div.className = "line";
-                    div.textContent = parts[i] === "" ? " " : parts[i];
+                    const part = parts[i] === "" ? " " : parts[i];
+                    if (isHtml) {
+                        div.innerHTML = part;
+                    } else {
+                        div.textContent = part;
+                    }
                     const srcLine = lines[i];
                     if (typeof srcLine === "number" && srcLine > 0) {
                         div.dataset.srcLine = String(srcLine);
