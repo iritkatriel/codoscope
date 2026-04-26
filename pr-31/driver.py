@@ -46,9 +46,7 @@ def view_tokens(code: str) -> dict[str, Any]:
 
 _ANSI_RE = re.compile(r"\x1b\[([0-9;]*)m")
 _LINENO_RE = re.compile(r"\blineno=(\d+)")
-_ATTR_ROW_RE = re.compile(
-    r"^\s*(?:lineno|col_offset|end_lineno|end_col_offset)=\d+"
-)
+_ATTR_ROW_RE = re.compile(r"^\s*(?:lineno|col_offset|end_lineno|end_col_offset)=\d+")
 _ANSI_CLASS = {
     "36": "ast-node",
     "34": "ast-field",
@@ -81,10 +79,6 @@ def _ansi_to_html(s: str) -> str:
 
 
 def _attach_linenos(plain_lines: list[str]) -> list[int | None]:
-    # `lineno=N` appears as a leaf field row inside the node, not on the
-    # opener row. So: extract own lineno per row, then propagate bottom-up
-    # (openers inherit from a child) and top-down (attribute rows inherit
-    # from the enclosing opener).
     n = len(plain_lines)
     result: list[int | None] = [None] * n
     indents = [len(line) - len(line.lstrip(" ")) for line in plain_lines]
@@ -124,11 +118,6 @@ def _strip_attribute_rows(
     html_lines: list[str],
     lineno_map: list[int | None],
 ) -> tuple[list[str], list[str], list[int | None]]:
-    # Drop pure-attribute rows. Only end_col_offset rows carry closing
-    # punctuation; when several nodes' attribute groups run back-to-back,
-    # each end_col_offset row contributes its own ")"/"]" chars. Collect
-    # them all and graft onto the previous kept row, replacing that row's
-    # trailing field-separator comma.
     n = len(plain_lines)
     keep = [True] * n
     plain_lines = list(plain_lines)
