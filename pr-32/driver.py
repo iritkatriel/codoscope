@@ -39,7 +39,7 @@ def view_tokens(code: str) -> dict[str, Any]:
             marker = "      "
         if color:
             ansi = (
-                f"{theme.tokenize.position}{marker}{reset}"
+                f"{_colorize.ANSIColors.RED}{marker}{reset}"
                 f"{token_colors.get(tok.type, reset)}{tok_name[tok.exact_type]:10}{reset} "
                 f"{tok.string!r}"
             )
