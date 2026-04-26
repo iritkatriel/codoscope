@@ -155,9 +155,9 @@ def _strip_attribute_rows(
             plain_lines[prev] = _replace_trailing_comma(plain_lines[prev], tail)
             html_lines[prev] = _replace_trailing_comma(html_lines[prev], tail)
 
-    new_plain = [l for i, l in enumerate(plain_lines) if keep[i]]
-    new_html = [l for i, l in enumerate(html_lines) if keep[i]]
-    new_lineno = [l for i, l in enumerate(lineno_map) if keep[i]]
+    new_plain = [line for i, line in enumerate(plain_lines) if keep[i]]
+    new_html = [line for i, line in enumerate(html_lines) if keep[i]]
+    new_lineno = [ln for i, ln in enumerate(lineno_map) if keep[i]]
     return new_plain, new_html, new_lineno
 
 
@@ -170,13 +170,12 @@ def _replace_trailing_comma(line: str, tail: str) -> str:
 
 def view_ast(code: str, *, optimize: bool = False) -> dict[str, Any]:
     tree = ast.parse(code, optimize=1) if optimize else ast.parse(code)
-    colored = ast.dump(
-        tree,
-        indent=4,
-        color=True,
-        include_attributes=True,
-        show_empty=True,
+    dump_kwargs: dict[str, Any] = dict(
+        indent=4, include_attributes=True, show_empty=True
     )
+    if sys.version_info >= (3, 15):
+        dump_kwargs["color"] = True
+    colored = ast.dump(tree, **dump_kwargs)
     plain_lines = _ANSI_RE.sub("", colored).split("\n")
     html_lines = [_ansi_to_html(line) for line in colored.split("\n")]
     lineno_map = _attach_linenos(plain_lines)
