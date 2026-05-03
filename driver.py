@@ -16,44 +16,58 @@ from typing import Any, Iterator
 from _testinternalcapi import compiler_codegen, optimize_cfg
 
 
-def _as_view(rows: list[tuple[str, int | None]]) -> dict[str, Any]:
-    text_lines = [row[0] for row in rows]
-    src_lines = [row[1] for row in rows]
-    return {"text": "\n".join(text_lines), "lines": src_lines}
-
-
 def view_tokens(code: str) -> dict[str, Any]:
-    rows = []
-    toks = tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline)
+    if color := sys.version_info >= (3, 15):
+        import _colorize
+
+        theme = _colorize.get_theme(force_color=True)
+        syntax = theme.syntax
+        token_colors = tokenize._get_token_colors(syntax, theme.tokenize)
+        reset = syntax.reset
+
+    toks = list(tokenize.tokenize(io.BytesIO(code.encode("utf-8")).readline))
+    html_lines = []
+    src_lines = []
     current_line = 0
-    for t in toks:
-        line, end = t.start[0], t.end[0]
+    for tok in toks:
+        line, end = tok.start[0], tok.end[0]
         if end != line:
             marker = f"{line:4d}-{end}: "
         elif line != current_line:
             marker = f"{line:4d}: "
         else:
             marker = "      "
-        rows.append(
-            (
-                f"{marker}{tok_name[t.exact_type]:10} {t.string!r}",
-                line if line > 0 else None,
+        if color:
+            ansi = (
+                f"{_colorize.ANSIColors.RED}{marker}{reset}"
+                f"{token_colors.get(tok.type, reset)}{tok_name[tok.exact_type]:10}{reset} "
+                f"{tok.string!r}"
             )
-        )
+            html_lines.append(_ansi_to_html(ansi))
+        else:
+            plain = f"{marker}{tok_name[tok.exact_type]:10} {tok.string!r}"
+            html_lines.append(html.escape(plain))
+        src_lines.append(line if line > 0 else None)
         current_line = line
-    return _as_view(rows)
+    return {
+        "text": "\n".join(html_lines),
+        "lines": src_lines,
+        "html": True,
+    }
 
 
 _ANSI_RE = re.compile(r"\x1b\[([0-9;]*)m")
 _LINENO_RE = re.compile(r"\blineno=(\d+)")
 _ATTR_ROW_RE = re.compile(r"^\s*(?:lineno|col_offset|end_lineno|end_col_offset)=\d+")
 _ANSI_CLASS = {
-    "36": "ast-node",
-    "34": "ast-field",
-    "90": "ast-attribute",
-    "32": "ast-string",
-    "33": "ast-number",
-    "1;34": "ast-keyword",
+    "31": "ansi-red",
+    "32": "ansi-green",
+    "33": "ansi-yellow",
+    "34": "ansi-blue",
+    "36": "ansi-cyan",
+    "90": "ansi-grey",
+    "1;31": "ansi-bold-red",
+    "1;34": "ansi-bold-blue",
 }
 
 
