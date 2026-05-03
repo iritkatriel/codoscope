@@ -132,12 +132,17 @@
             .panel > .content .line.highlight {
                 background: rgba(255, 215, 0, 0.35);
             }
-            .ast-node      { color: #5fc1e0; }
-            .ast-field     { color: #6cb6ff; }
-            .ast-attribute { color: #8a93a0; }
-            .ast-string    { color: #b5e890; }
-            .ast-number    { color: #f0c674; }
-            .ast-keyword   { color: #b9a0ff; font-weight: bold; }
+            /* mirrors cpython's default Theme (ANSIColors); palette tracks
+               the VS Code Dark+ terminal, with bold codes using the bright
+               variants per GNOME Terminal / iTerm2 convention. */
+            .ansi-red       { color: #cd3131; }
+            .ansi-green     { color: #0dbc79; }
+            .ansi-yellow    { color: #e5e510; }
+            .ansi-blue      { color: #2472c8; }
+            .ansi-cyan      { color: #11a8cd; }
+            .ansi-grey      { color: #767676; }
+            .ansi-bold-red  { color: #f14c4c; font-weight: bold; }
+            .ansi-bold-blue { color: #3b8eea; font-weight: bold; }
             .ace-codoscope-highlight {
                 position: absolute;
                 background: rgba(255, 215, 0, 0.35);
