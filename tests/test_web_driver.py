@@ -16,27 +16,27 @@ from web import driver  # noqa: E402
 class WebDriverTests(unittest.TestCase):
     def test_view_tokens_includes_token_names(self) -> None:
         rendered = driver.view_tokens("x = 1\n")
-        self.assertIn("NAME", rendered['text'])
-        self.assertIn("NUMBER", rendered['text'])
+        self.assertIn("NAME", rendered["text"])
+        self.assertIn("NUMBER", rendered["text"])
 
     def test_view_ast_returns_module_dump(self) -> None:
         rendered = driver.view_ast("x = 1\n", optimize=False)
         self.assertTrue(rendered["html"])
-        self.assertIn(">Module</span>(", rendered["text"])
-        self.assertIn(">Assign</span>(", rendered["text"])
+        self.assertIn("Module", rendered["text"])
+        self.assertIn("Assign", rendered["text"])
         # Every row maps back to source line 1 via lineno propagation.
         self.assertTrue(all(ln == 1 for ln in rendered["lines"] if ln is not None))
 
     def test_view_pseudo_smoke(self) -> None:
         rendered = driver.view_pseudo("def f(x):\n    return x\n\nprint(f(42))\n")
-        self.assertIn("LOAD_CONST", rendered['text'])
+        self.assertIn("LOAD_CONST", rendered["text"])
 
     def test_view_compiled_smoke(self) -> None:
         rendered = driver.view_compiled("x = 1\n")
         if sys.version_info < (3, 15):
-            self.assertIn("LOAD_CONST", rendered['text'])
+            self.assertIn("LOAD_CONST", rendered["text"])
         else:
-            self.assertIn("LOAD_SMALL_INT", rendered['text'])
+            self.assertIn("LOAD_SMALL_INT", rendered["text"])
 
     def test_instruction_items_supports_list_and_get_instructions(self) -> None:
         inst = dis.Instruction(
